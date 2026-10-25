@@ -1,4 +1,4 @@
-// assets/js/app.js
+// BE ONLY ONE - app.js
 import {
   auth,
   db,
@@ -25,8 +25,7 @@ import {
 import { uploadMedia } from "./cloudinary-config.js";
 
 const $ = (selector, root = document) => root.querySelector(selector);
-const $$ = (selector, root = document) =>
-  [...root.querySelectorAll(selector)];
+const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 
 const state = {
   user: null,
@@ -38,15 +37,6 @@ const state = {
   busy: false
 };
 
-const fallbackProfile = (user) => ({
-  uid: user.uid,
-  displayName: user.displayName || "Member",
-  gender: "other",
-  bio: "",
-  interests: [],
-  photoURL: ""
-});
-
 function showToast(message, type = "info") {
   const region = $("#toast-region");
   if (!region) {
@@ -56,9 +46,9 @@ function showToast(message, type = "info") {
 
   const item = document.createElement("div");
   item.className = `toast toast-${type}`;
-  item.textContent = message;
+  item.textContent = String(message ?? "");
+  item.setAttribute("role", type === "error" ? "alert" : "status");
   region.appendChild(item);
-
   window.setTimeout(() => item.remove(), 4500);
 }
 
@@ -66,7 +56,7 @@ function setMessage(selector, message, type = "error") {
   const element = $(selector);
   if (!element) return;
 
-  element.textContent = message;
+  element.textContent = message || "";
   element.dataset.type = type;
   element.hidden = !message;
 }
@@ -83,33 +73,35 @@ function explainError(error) {
     "auth/wrong-password": "Password correct kaadu.",
     "auth/too-many-requests": "Chala attempts ayyayi. Konchem sepu tarvatha try cheyyi.",
     "auth/network-request-failed": "Internet connection check chesi malli try cheyyi.",
-    "permission-denied": "Firestore permission denied. Published security rules-ni check cheyyali.",
-    "firestore/permission-denied": "Firestore permission denied. Security rules-ni check cheyyali."
+    "permission-denied": "Firestore permission denied. Security rules check cheyyali.",
+    "firestore/permission-denied": "Firestore permission denied. Security rules check cheyyali."
   };
 
   if (messages[code]) return messages[code];
-  if (code.includes("permission-denied")) {
-    return "Firestore access denied. Security rules or document fields match avvatledhu.";
+
+  if (String(code).includes("permission-denied")) {
+    return "Firestore access denied. Security rules or document fields check cheyyali.";
   }
 
   return error?.message || "Unexpected error. Malli try cheyyi.";
 }
 
 function setBusy(busy) {
-  state.busy = busy;
+  state.busy = Boolean(busy);
 
   const submit = $("#auth-submit");
   if (submit) {
-    submit.disabled = busy;
-    submit.textContent = busy
+    submit.disabled = state.busy;
+    submit.textContent = state.busy
       ? "Please wait..."
-      : state.authMode === "signup"
-        ? "Create account"
-        : "Login";
+      : state.authMode === "signup" ? "Create account" : "Login";
   }
 
   const publish = $("#publish-story-button");
-  if (publish) publish.disabled = busy;
+  if (publish) publish.disabled = state.busy;
+
+  const alternatePublish = $("#publish-story");
+  if (alternatePublish) alternatePublish.disabled = state.busy;
 }
 
 function openDialog(selector) {
@@ -156,20 +148,15 @@ function setAuthMode(mode) {
   const submit = $("#auth-submit");
   const toggle = $("#auth-mode-toggle");
 
-  if (nameField) nameField.closest(".form-field, label")?.classList.toggle("is-visible", signup);
-  if (genderField) genderField.closest(".form-field, label")?.classList.toggle("is-visible", signup);
-
-  if (nameField) {
-    nameField.hidden = !signup;
-    nameField.required = signup;
-  }
-
-  if (genderField) {
-    genderField.hidden = !signup;
-    genderField.required = signup;
+  for (const field of [nameField, genderField]) {
+    if (!field) continue;
+    field.hidden = !signup;
+    field.required = signup;
+    field.closest(".form-field, label")?.classList.toggle("is-visible", signup);
   }
 
   if (submit) submit.textContent = signup ? "Create account" : "Login";
+
   if (toggle) {
     toggle.textContent = signup
       ? "Already have an account? Login"
@@ -184,6 +171,17 @@ function openAuth(mode = "login") {
   openDialog("#auth-dialog");
 }
 
+function fallbackProfile(user) {
+  return {
+    uid: user.uid,
+    displayName: user.displayName || "Member",
+    gender: "other",
+    bio: "",
+    interests: [],
+    photoURL: ""
+  };
+}
+
 async function loadProfile(user, createIfMissing = false) {
   const profileRef = doc(db, "users", user.uid);
   const snapshot = await getDoc(profileRef);
@@ -194,13 +192,12 @@ async function loadProfile(user, createIfMissing = false) {
       ...snapshot.data(),
       uid: user.uid
     };
+
     updateNavigation();
     applyExperience();
     return state.profile;
   }
 
-  // Auth-state changes must not automatically write a missing profile.
-  // This prevents the auth listener racing with the signup profile write.
   state.profile = fallbackProfile(user);
 
   if (createIfMissing) {
@@ -211,7 +208,6 @@ async function loadProfile(user, createIfMissing = false) {
     };
 
     await setDoc(profileRef, profile);
-    state.profile = { ...state.profile };
   }
 
   updateNavigation();
@@ -233,14 +229,20 @@ function updateNavigation() {
   const accountName = $("#account-name");
   if (accountName) {
     accountName.textContent =
-      state.profile?.displayName || state.user?.displayName || "My account";
+      state.profile?.displayName ||
+      state.user?.displayName ||
+      "My account";
   }
 
   const avatar = $("#account-avatar");
   if (avatar) {
-    avatar.textContent = (state.profile?.displayName || "M").slice(0, 1).toUpperCase();
+    avatar.textContent = (
+      state.profile?.displayName || "M"
+    ).slice(0, 1).toUpperCase();
+
     if (state.profile?.photoURL) {
-      avatar.style.backgroundImage = `url("${state.profile.photoURL}")`;
+      avatar.style.backgroundImage =
+        `url("${String(state.profile.photoURL).replace(/["\\]/g, "")}")`;
     } else {
       avatar.style.backgroundImage = "";
     }
@@ -291,13 +293,13 @@ function formatDate(value) {
     : new Date(value);
 
   if (Number.isNaN(date.getTime())) return "";
+
   return date.toLocaleDateString(undefined, {
     year: "numeric",
     month: "short",
     day: "numeric"
   });
 }
-
 function mediaMarkup(story) {
   if (!story.mediaURL) return "";
 
@@ -320,19 +322,31 @@ function storyMarkup(story) {
   const displayName = escapeHTML(story.authorName || "BE ONLY ONE member");
   const title = escapeHTML(story.title || "Untitled story");
   const text = escapeHTML(story.text || "");
-  const mood = story.mood ? `<span class="story-mood">${escapeHTML(story.mood)}</span>` : "";
+  const mood = story.mood
+    ? `<span class="story-mood">${escapeHTML(story.mood)}</span>`
+    : "";
   const kind = escapeHTML(story.kind || "feeling");
+  const id = escapeHTML(story.id || "");
+
+  const reportButton = !owner && state.user
+    ? `<button type="button" data-action="report-story" data-id="${id}" data-author="${escapeHTML(story.authorId || "")}">Report</button>`
+    : "";
+
+  const deleteButton = owner
+    ? `<button type="button" class="story-delete" data-action="delete-story" data-id="${id}" aria-label="Delete story">Delete</button>`
+    : "";
 
   return `
-    <article class="story-card" data-story-id="${escapeHTML(story.id)}">
+    <article class="story-card" data-story-id="${id}">
       <header class="story-card-header">
         <div class="story-author-avatar" aria-hidden="true">${displayName.slice(0, 1).toUpperCase()}</div>
         <div class="story-author-details">
           <strong>${displayName}</strong>
-          <span>${formatDate(story.createdAt)}</span>
+          <span>${escapeHTML(formatDate(story.createdAt))}</span>
         </div>
-        ${owner ? `<button type="button" class="story-delete" data-action="delete-story" data-id="${escapeHTML(story.id)}" aria-label="Delete story">Delete</button>` : ""}
+        ${deleteButton}
       </header>
+
       <div class="story-card-content">
         <span class="story-kind">${kind}</span>
         <h3>${title}</h3>
@@ -340,12 +354,12 @@ function storyMarkup(story) {
         ${text ? `<p>${text.replace(/\n/g, "<br>")}</p>` : ""}
         ${mediaMarkup(story)}
       </div>
+
       <footer class="story-card-footer">
         <span>${escapeHTML(story.visibility || "public")}</span>
-        ${!owner && state.user ? `<button type="button" data-action="report-story" data-id="${escapeHTML(story.id)}" data-author="${escapeHTML(story.authorId)}">Report</button>` : ""}
+        ${reportButton}
       </footer>
-    </article>
-  `;
+    </article>`;
 }
 
 function renderStories() {
@@ -355,17 +369,20 @@ function renderStories() {
   let stories = [...state.stories];
 
   if (state.storyFilter === "mine") {
-    stories = stories.filter((story) => story.authorId === state.user?.uid);
+    stories = stories.filter(
+      (story) => story.authorId === state.user?.uid
+    );
   } else if (state.storyFilter === "connections") {
-    // Only stories returned by Firestore are eligible to be displayed.
-    stories = stories.filter((story) =>
-      story.authorId === state.user?.uid ||
-      story.visibility === "connections"
+    stories = stories.filter(
+      (story) =>
+        story.authorId === state.user?.uid ||
+        story.visibility === "connections"
     );
   } else {
-    stories = stories.filter((story) =>
-      story.authorId === state.user?.uid ||
-      story.visibility === "public"
+    stories = stories.filter(
+      (story) =>
+        story.authorId === state.user?.uid ||
+        story.visibility === "public"
     );
   }
 
@@ -377,7 +394,10 @@ function renderStories() {
 
   feed.innerHTML = stories.length
     ? stories.map(storyMarkup).join("")
-    : `<div class="empty-state"><h3>No stories to show yet</h3><p>Share a feeling or memory to start your world.</p></div>`;
+    : `<div class="empty-state">
+         <h3>No stories to show yet</h3>
+         <p>Share a feeling or memory to start your world.</p>
+       </div>`;
 }
 
 async function fetchStories() {
@@ -395,6 +415,7 @@ async function fetchStories() {
       where("authorId", "==", state.user.uid),
       limit(50)
     );
+
     const publicQuery = query(
       collection(db, "stories"),
       where("visibility", "==", "public"),
@@ -406,11 +427,15 @@ async function fetchStories() {
       getDocs(publicQuery)
     ]);
 
-    ownSnapshot.forEach((item) => collected.set(item.id, { id: item.id, ...item.data() }));
-    publicSnapshot.forEach((item) => collected.set(item.id, { id: item.id, ...item.data() }));
+    ownSnapshot.forEach((item) => {
+      collected.set(item.id, { id: item.id, ...item.data() });
+    });
 
-    // Connection-only stories can be queried only after the app has a
-    // connection-aware query and rules that permit it.
+    publicSnapshot.forEach((item) => {
+      collected.set(item.id, { id: item.id, ...item.data() });
+    });
+
+    // Connection-only stories need secure connection-aware rules and queries.
     state.stories = [...collected.values()];
     renderStories();
   } catch (error) {
@@ -433,17 +458,16 @@ async function handleAuthSubmit(event) {
     return;
   }
 
+  if (state.authMode === "signup" && !displayName) {
+    setMessage("#auth-message", "Display name enter cheyyi.");
+    return;
+  }
+
   setBusy(true);
   setMessage("#auth-message", "");
 
   try {
     if (state.authMode === "signup") {
-      if (!displayName) {
-        setMessage("#auth-message", "Display name enter cheyyi.");
-        return;
-      }
-
-      // Create the Authentication account first.
       const credential = await createUserWithEmailAndPassword(
         auth,
         email,
@@ -451,12 +475,16 @@ async function handleAuthSubmit(event) {
       );
 
       const user = credential.user;
-      await updateProfile(user, { displayName });
+      const cleanName = displayName.slice(0, 60);
+
+      await updateProfile(user, { displayName: cleanName });
 
       const profile = {
         uid: user.uid,
-        displayName,
-        gender: ["male", "female", "other"].includes(gender) ? gender : "other",
+        displayName: cleanName,
+        gender: ["male", "female", "other"].includes(gender)
+          ? gender
+          : "other",
         bio: "",
         interests: [],
         photoURL: "",
@@ -464,14 +492,12 @@ async function handleAuthSubmit(event) {
         updatedAt: serverTimestamp()
       };
 
-      // Only the signup handler writes the new profile.
-      // The auth-state listener never creates a missing profile.
       await setDoc(doc(db, "users", user.uid), profile);
 
       state.user = user;
       state.profile = {
         uid: user.uid,
-        displayName,
+        displayName: cleanName,
         gender: profile.gender,
         bio: "",
         interests: [],
@@ -491,8 +517,6 @@ async function handleAuthSubmit(event) {
       );
 
       state.user = credential.user;
-
-      // Repairs a missing profile only during an explicit login flow.
       await loadProfile(credential.user, true);
 
       updateNavigation();
@@ -512,13 +536,20 @@ async function handleForgotPassword() {
   const email = $("#auth-email")?.value.trim();
 
   if (!email) {
-    setMessage("#auth-message", "Password reset kosam mundu email enter cheyyi.");
+    setMessage(
+      "#auth-message",
+      "Password reset kosam mundu email enter cheyyi."
+    );
     return;
   }
 
   try {
     await sendPasswordResetEmail(auth, email);
-    setMessage("#auth-message", "Password reset link email ki pampincham.", "success");
+    setMessage(
+      "#auth-message",
+      "Password reset link email ki pampincham.",
+      "success"
+    );
   } catch (error) {
     setMessage("#auth-message", explainError(error));
   }
@@ -533,6 +564,16 @@ function openStoryDialog() {
 
   setMessage("#story-message", "");
   $("#story-form")?.reset();
+
+  const progress = $("#upload-progress");
+  if (progress) progress.value = 0;
+
+  const progressBar = $("#upload-progress-bar");
+  if (progressBar) progressBar.style.width = "0%";
+
+  const progressText = $("#upload-progress-text");
+  if (progressText) progressText.textContent = "";
+
   openDialog("#story-dialog");
 }
 
@@ -548,7 +589,10 @@ async function handleStorySubmit(event) {
   const file = $("#story-media")?.files?.[0] || null;
 
   if (!title && !text && !file) {
-    setMessage("#story-message", "Title, story text, or media lo edhaina add cheyyi.");
+    setMessage(
+      "#story-message",
+      "Title, story text, or media lo edhaina add cheyyi."
+    );
     return;
   }
 
@@ -565,29 +609,42 @@ async function handleStorySubmit(event) {
   setBusy(true);
   setMessage("#story-message", "");
 
+  const progressBar = $("#upload-progress-bar");
+  const progressText = $("#upload-progress-text");
+
   try {
     let media = {
       url: "",
       publicId: "",
       resourceType: "",
-      format: ""
+      format: "",
+      bytes: 0,
+      duration: null
     };
 
     if (file) {
-      media = await uploadMedia(file);
+      if (progressText) progressText.textContent = "Uploading media...";
+      if (progressBar) progressBar.style.width = "10%";
+
+      media = { ...media, ...(await uploadMedia(file)) };
+
+      if (progressBar) progressBar.style.width = "100%";
+      if (progressText) progressText.textContent = "Upload complete";
     }
 
     const mediaType = media.resourceType === "video"
       ? "video"
       : media.resourceType === "audio"
         ? "audio"
-        : media.url
-          ? "image"
-          : "";
+        : media.url ? "image" : "";
 
     const story = {
       authorId: state.user.uid,
-      authorName: state.profile?.displayName || state.user.displayName || "Member",
+      authorName: (
+        state.profile?.displayName ||
+        state.user.displayName ||
+        "Member"
+      ).slice(0, 60),
       title: title.slice(0, 200),
       text: text.slice(0, 5000),
       kind,
@@ -596,6 +653,11 @@ async function handleStorySubmit(event) {
       mediaURL: media.url || "",
       mediaPublicId: media.publicId || "",
       mediaType,
+      mediaFormat: media.format || "",
+      mediaBytes: Number(media.bytes) || 0,
+      mediaDuration: Number.isFinite(Number(media.duration))
+        ? Number(media.duration)
+        : null,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     };
@@ -612,7 +674,6 @@ async function handleStorySubmit(event) {
     setBusy(false);
   }
 }
-
 async function deleteStory(storyId) {
   if (!state.user || !storyId) return;
   if (!window.confirm("Ee story delete cheyyala?")) return;
@@ -647,10 +708,14 @@ async function reportStory(storyId, authorId) {
     return;
   }
 
-  const reason = window.prompt("Report reason enter cheyyi (1–500 characters):");
+  const reason = window.prompt(
+    "Report reason enter cheyyi (1–500 characters):"
+  );
+
   if (reason === null) return;
 
   const cleanedReason = reason.trim();
+
   if (!cleanedReason || cleanedReason.length > 500) {
     showToast("Reason 1–500 characters undali.", "error");
     return;
@@ -659,8 +724,8 @@ async function reportStory(storyId, authorId) {
   try {
     await addDoc(collection(db, "reports"), {
       reporterId: state.user.uid,
-      storyId,
-      reportedUserId: authorId || "",
+      storyId: String(storyId),
+      reportedUserId: String(authorId || ""),
       reason: cleanedReason,
       status: "pending",
       createdAt: serverTimestamp()
@@ -679,13 +744,25 @@ async function loadRequests() {
   const requests = collection(db, "connectionRequests");
 
   const [incomingSnapshot, outgoingSnapshot] = await Promise.all([
-    getDocs(query(requests, where("to", "==", state.user.uid), limit(100))),
-    getDocs(query(requests, where("from", "==", state.user.uid), limit(100)))
+    getDocs(query(
+      requests,
+      where("to", "==", state.user.uid),
+      limit(100)
+    )),
+    getDocs(query(
+      requests,
+      where("from", "==", state.user.uid),
+      limit(100)
+    ))
   ]);
 
   return {
-    incoming: incomingSnapshot.docs.map((item) => ({ id: item.id, ...item.data() })),
-    outgoing: outgoingSnapshot.docs.map((item) => ({ id: item.id, ...item.data() }))
+    incoming: incomingSnapshot.docs.map(
+      (item) => ({ id: item.id, ...item.data() })
+    ),
+    outgoing: outgoingSnapshot.docs.map(
+      (item) => ({ id: item.id, ...item.data() })
+    )
   };
 }
 
@@ -694,41 +771,58 @@ async function loadConnectionsContent() {
   if (!container) return;
 
   if (!state.user) {
-    container.innerHTML = `<p>Please login to view connections.</p>`;
+    container.textContent = "Please login to view connections.";
     return;
   }
 
-  container.innerHTML = `<p>Loading...</p>`;
+  container.textContent = "Loading...";
 
   try {
     const { incoming, outgoing } = await loadRequests();
 
     if (state.connectionTab === "requests") {
-      const pending = incoming.filter((request) => request.status === "pending");
+      const pending = incoming.filter(
+        (request) => request.status === "pending"
+      );
 
       container.innerHTML = pending.length
         ? pending.map((request) => `
           <article class="connection-row">
-            <p>Connection request from <strong>${escapeHTML(request.from)}</strong></p>
-            <button type="button" data-action="respond-request" data-id="${escapeHTML(request.id)}" data-status="accepted">Accept</button>
-            <button type="button" data-action="respond-request" data-id="${escapeHTML(request.id)}" data-status="rejected">Decline</button>
+            <p>Connection request from
+              <strong>${escapeHTML(request.from)}</strong>
+            </p>
+            <button type="button"
+              data-action="respond-request"
+              data-id="${escapeHTML(request.id)}"
+              data-status="accepted">Accept</button>
+            <button type="button"
+              data-action="respond-request"
+              data-id="${escapeHTML(request.id)}"
+              data-status="rejected">Decline</button>
           </article>
         `).join("")
         : `<div class="empty-state"><p>No pending requests.</p></div>`;
+
       return;
     }
 
     if (state.connectionTab === "connections") {
       container.innerHTML = `
         <div class="empty-state">
-          <p>Accepted connections will appear here once connection-pair creation is implemented securely.</p>
+          <p>Accepted connections will appear here after secure
+          connection-pair creation is implemented on a trusted backend.</p>
         </div>`;
       return;
     }
 
-    const usersSnapshot = await getDocs(query(collection(db, "users"), limit(50)));
+    const usersSnapshot = await getDocs(
+      query(collection(db, "users"), limit(50))
+    );
+
     const outgoingPending = new Set(
-      outgoing.filter((request) => request.status === "pending").map((request) => request.to)
+      outgoing
+        .filter((request) => request.status === "pending")
+        .map((request) => request.to)
     );
 
     const users = usersSnapshot.docs
@@ -745,14 +839,16 @@ async function loadConnectionsContent() {
           ${
             outgoingPending.has(person.uid)
               ? `<span>Request pending</span>`
-              : `<button type="button" data-action="send-request" data-id="${escapeHTML(person.uid)}">Connect</button>`
+              : `<button type="button"
+                   data-action="send-request"
+                   data-id="${escapeHTML(person.uid)}">Connect</button>`
           }
         </article>
       `).join("")
       : `<div class="empty-state"><p>No members to discover yet.</p></div>`;
   } catch (error) {
     console.error("Connections loading failed:", error);
-    container.innerHTML = `<p>${escapeHTML(explainError(error))}</p>`;
+    container.textContent = explainError(error);
   }
 }
 
@@ -794,7 +890,11 @@ async function sendConnectionRequest(toUid) {
 }
 
 async function respondToRequest(requestId, status) {
-  if (!state.user || !requestId || !["accepted", "rejected"].includes(status)) return;
+  if (
+    !state.user ||
+    !requestId ||
+    !["accepted", "rejected"].includes(status)
+  ) return;
 
   try {
     const requestRef = doc(db, "connectionRequests", requestId);
@@ -806,7 +906,11 @@ async function respondToRequest(requestId, status) {
     }
 
     const requestData = snapshot.data();
-    if (requestData.to !== state.user.uid || requestData.status !== "pending") {
+
+    if (
+      requestData.to !== state.user.uid ||
+      requestData.status !== "pending"
+    ) {
       showToast("You cannot update this request.", "error");
       return;
     }
@@ -816,14 +920,12 @@ async function respondToRequest(requestId, status) {
       updatedAt: serverTimestamp()
     });
 
-    if (status === "accepted") {
-      showToast(
-        "Request accepted. Secure connection-pair creation still needs a trusted backend.",
-        "info"
-      );
-    } else {
-      showToast("Request declined.", "success");
-    }
+    showToast(
+      status === "accepted"
+        ? "Request accepted. Secure connection-pair backend is still required."
+        : "Request declined.",
+      status === "accepted" ? "info" : "success"
+    );
 
     await loadConnectionsContent();
   } catch (error) {
@@ -850,8 +952,7 @@ async function openProfile() {
       <p><strong>Gender:</strong> ${escapeHTML(profile.gender || "other")}</p>
       <p><strong>Email:</strong> ${escapeHTML(state.user.email || "")}</p>
       <button type="button" data-action="edit-profile">Edit profile</button>
-    </div>
-  `;
+    </div>`;
 
   openDialog("#profile-dialog");
 }
@@ -859,7 +960,8 @@ async function openProfile() {
 async function editProfile() {
   if (!state.user) return;
 
-  const currentName = state.profile?.displayName || state.user.displayName || "";
+  const currentName =
+    state.profile?.displayName || state.user.displayName || "";
   const currentBio = state.profile?.bio || "";
 
   const displayName = window.prompt("Display name:", currentName);
@@ -868,8 +970,8 @@ async function editProfile() {
   const bio = window.prompt("Bio:", currentBio);
   if (bio === null) return;
 
-  const cleanedName = displayName.trim();
-  const cleanedBio = bio.trim();
+  const cleanedName = displayName.trim().slice(0, 60);
+  const cleanedBio = bio.trim().slice(0, 500);
 
   if (!cleanedName) {
     showToast("Display name cannot be empty.", "error");
@@ -899,8 +1001,7 @@ async function editProfile() {
     console.error("Profile update failed:", error);
     showToast(explainError(error), "error");
   }
-}
-
+      }
 async function openSettings() {
   const content = $("#settings-content");
   if (!content) return;
@@ -916,16 +1017,17 @@ async function openSettings() {
       <p>${escapeHTML(state.user.email || "")}</p>
       <p>Your stories can be public, connections-only, or private.</p>
       <button type="button" data-action="logout">Log out</button>
-    </section>
-  `;
+    </section>`;
 
   openDialog("#settings-dialog");
 }
 
 function setConnectionTab(tab) {
-  state.connectionTab = ["connections", "requests", "discover"].includes(tab)
-    ? tab
-    : "discover";
+  state.connectionTab = [
+    "connections",
+    "requests",
+    "discover"
+  ].includes(tab) ? tab : "discover";
 
   $$("[data-connection-tab]").forEach((button) => {
     button.classList.toggle(
@@ -934,7 +1036,7 @@ function setConnectionTab(tab) {
     );
   });
 
-  loadConnectionsContent();
+  void loadConnectionsContent();
 }
 
 function openConnections(tab = "discover") {
@@ -951,7 +1053,10 @@ function openFeature(title, description) {
   const titleNode = $("#feature-dialog-title");
   const descriptionNode = $("#feature-dialog-description");
 
-  if (titleNode) titleNode.textContent = title || "Coming soon";
+  if (titleNode) {
+    titleNode.textContent = title || "Coming soon";
+  }
+
   if (descriptionNode) {
     descriptionNode.textContent = description ||
       "This feature will be available in a future release.";
@@ -976,7 +1081,9 @@ function bindEvents() {
   $("#story-form")?.addEventListener("submit", handleStorySubmit);
 
   $("#auth-mode-toggle")?.addEventListener("click", () => {
-    setAuthMode(state.authMode === "signup" ? "login" : "signup");
+    setAuthMode(
+      state.authMode === "signup" ? "login" : "signup"
+    );
   });
 
   $$('[data-action="forgot-password"]').forEach((button) => {
@@ -984,7 +1091,11 @@ function bindEvents() {
   });
 
   document.addEventListener("click", async (event) => {
-    const button = event.target.closest("[data-action]");
+    const target = event.target instanceof Element
+      ? event.target
+      : null;
+
+    const button = target?.closest("[data-action]");
     if (!button) return;
 
     const action = button.dataset.action;
@@ -995,45 +1106,67 @@ function bindEvents() {
         case "get-started":
           openStoryDialog();
           break;
+
         case "open-auth":
           openAuth(button.dataset.mode || "login");
           break;
+
         case "open-profile":
           await openProfile();
           break;
+
         case "edit-profile":
           await editProfile();
           break;
+
         case "view-connections":
           openConnections("discover");
           break;
+
         case "open-settings":
           await openSettings();
           break;
+
         case "logout":
           await logout();
           break;
-        case "close-dialog":
-          closeDialog(button.dataset.dialog || `#${button.closest("dialog")?.id}`);
+
+        case "close-dialog": {
+          const parentDialog = button.closest("dialog");
+          const selector = button.dataset.dialog ||
+            (parentDialog ? `#${parentDialog.id}` : "");
+
+          if (selector) closeDialog(selector);
           break;
+        }
+
         case "new-story":
           openStoryDialog();
           break;
+
         case "delete-story":
           await deleteStory(id);
           break;
+
         case "report-story":
           await reportStory(id, button.dataset.author);
           break;
+
         case "send-request":
           await sendConnectionRequest(id);
           break;
+
         case "respond-request":
           await respondToRequest(id, button.dataset.status);
           break;
+
         case "feature":
-          openFeature(button.dataset.title, button.dataset.description);
+          openFeature(
+            button.dataset.title,
+            button.dataset.description
+          );
           break;
+
         default:
           break;
       }
@@ -1066,7 +1199,9 @@ function bindEvents() {
   });
 
   const year = $("#current-year");
-  if (year) year.textContent = String(new Date().getFullYear());
+  if (year) {
+    year.textContent = String(new Date().getFullYear());
+  }
 }
 
 function init() {
@@ -1086,7 +1221,7 @@ function init() {
     }
 
     try {
-      // IMPORTANT: no profile creation here. Signup/login handlers own writes.
+      // Profile creation is handled by explicit signup/login flows.
       await loadProfile(user, false);
       await fetchStories();
     } catch (error) {
@@ -1100,4 +1235,4 @@ if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", init, { once: true });
 } else {
   init();
-    }
+        }
