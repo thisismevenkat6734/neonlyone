@@ -1,1238 +1,301 @@
-// BE ONLY ONE - app.js
+// BE ONLY ONE — app.js
+// Expected local modules: firebase-config.js exports auth, db, functions.
+// cloudinary-config.js exports uploadMediaFile(file, onProgress?) returning { url, ... }.
+import { auth, db, functions } from "./firebase-config.js";
+import { uploadMediaFile } from "./cloudinary-config.js";
 import {
-  auth,
-  db,
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  sendPasswordResetEmail,
-  signOut,
-  onAuthStateChanged,
-  updateProfile,
-  doc,
-  getDoc,
-  setDoc,
-  updateDoc,
-  addDoc,
-  getDocs,
-  collection,
-  query,
-  where,
-  limit,
-  serverTimestamp,
-  deleteDoc
-} from "./firebase-config.js";
+  createUserWithEmailAndPassword, signInWithEmailAndPassword,
+  sendPasswordResetEmail, signOut, onAuthStateChanged, updateProfile
+} from "https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js";
+import {
+  doc, getDoc, setDoc, updateDoc, addDoc, getDocs, collection,
+  query, where, limit, serverTimestamp, deleteDoc
+} from "https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js";
+import { httpsCallable } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-functions.js";
 
-import { uploadMedia } from "./cloudinary-config.js";
+const $ = (s, root = document) => root.querySelector(s);
+const $$ = (s, root = document) => [...root.querySelectorAll(s)];
+const state = { user: null, profile: null, authMode: "login", storyFilter: "public", connectionTab: "discover", stories: [], busy: false };
 
-const $ = (selector, root = document) => root.querySelector(selector);
-const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
-
-const state = {
-  user: null,
-  profile: null,
-  authMode: "login",
-  storyFilter: "public",
-  connectionTab: "discover",
-  stories: [],
-  busy: false
-};
-
-function showToast(message, type = "info") {
-  const region = $("#toast-region");
-  if (!region) {
-    console.log(message);
-    return;
-  }
-
-  const item = document.createElement("div");
-  item.className = `toast toast-${type}`;
-  item.textContent = String(message ?? "");
-  item.setAttribute("role", type === "error" ? "alert" : "status");
-  region.appendChild(item);
-  window.setTimeout(() => item.remove(), 4500);
+function toast(text, type = "info") {
+  const region = $("#toast-region"); if (!region) return;
+  const node = document.createElement("p"); node.className = `toast toast-${type}`;
+  node.textContent = String(text || ""); node.setAttribute("role", type === "error" ? "alert" : "status");
+  region.appendChild(node); window.setTimeout(() => node.remove(), 4500);
 }
-
-function setMessage(selector, message, type = "error") {
-  const element = $(selector);
-  if (!element) return;
-
-  element.textContent = message || "";
-  element.dataset.type = type;
-  element.hidden = !message;
+function setMessage(selector, text = "", type = "error") {
+  const el = $(selector); if (!el) return;
+  el.textContent = text; el.dataset.type = type; el.hidden = !text;
 }
-
-function explainError(error) {
-  const code = error?.code || "";
-
+function errorText(error) {
   const messages = {
-    "auth/email-already-in-use": "Ee email tho account already undhi. Login try cheyyi.",
-    "auth/invalid-email": "Valid email address enter cheyyi.",
-    "auth/weak-password": "Strong password enter cheyyi. At least 6 characters undali.",
-    "auth/invalid-credential": "Email or password correct kaadu.",
-    "auth/user-not-found": "Ee email tho account kanipinchaledhu.",
-    "auth/wrong-password": "Password correct kaadu.",
-    "auth/too-many-requests": "Chala attempts ayyayi. Konchem sepu tarvatha try cheyyi.",
-    "auth/network-request-failed": "Internet connection check chesi malli try cheyyi.",
-    "permission-denied": "Firestore permission denied. Security rules check cheyyali.",
-    "firestore/permission-denied": "Firestore permission denied. Security rules check cheyyali."
+    "auth/email-already-in-use": "This email already has an account. Please sign in.",
+    "auth/invalid-email": "Enter a valid email address.",
+    "auth/weak-password": "Use a stronger password with at least 6 characters.",
+    "auth/invalid-credential": "Email or password is incorrect.",
+    "auth/too-many-requests": "Too many attempts. Please try again later.",
+    "auth/network-request-failed": "Check your internet connection and try again.",
+    "permission-denied": "Firestore access denied. Check your security rules and collection names."
   };
-
-  if (messages[code]) return messages[code];
-
-  if (String(code).includes("permission-denied")) {
-    return "Firestore access denied. Security rules or document fields check cheyyali.";
-  }
-
-  return error?.message || "Unexpected error. Malli try cheyyi.";
+  return messages[error?.code] || error?.message || "Something went wrong. Please try again.";
 }
-
-function setBusy(busy) {
-  state.busy = Boolean(busy);
-
-  const submit = $("#auth-submit");
-  if (submit) {
-    submit.disabled = state.busy;
-    submit.textContent = state.busy
-      ? "Please wait..."
-      : state.authMode === "signup" ? "Create account" : "Login";
-  }
-
-  const publish = $("#publish-story-button");
-  if (publish) publish.disabled = state.busy;
-
-  const alternatePublish = $("#publish-story");
-  if (alternatePublish) alternatePublish.disabled = state.busy;
+function openDialog(selector) { const d = $(selector); if (d && !d.open) d.showModal(); }
+function closeDialog(selector) { const d = $(selector); if (d?.open) d.close(); }
+function closeAllDialogs() { $$('dialog[open]').forEach(d => d.close()); }
+function escapeHTML(value = "") {
+  return String(value).replace(/[&<>"']/g, ch => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" })[ch]);
 }
-
-function openDialog(selector) {
-  const dialog = $(selector);
-  if (!dialog) return;
-
-  if (typeof dialog.showModal === "function") {
-    if (!dialog.open) dialog.showModal();
-  } else {
-    dialog.hidden = false;
-    dialog.setAttribute("open", "");
-  }
-}
-
-function closeDialog(selector) {
-  const dialog = $(selector);
-  if (!dialog) return;
-
-  if (typeof dialog.close === "function" && dialog.open) {
-    dialog.close();
-  } else {
-    dialog.hidden = true;
-    dialog.removeAttribute("open");
-  }
-}
-
-function closeAllDialogs() {
-  $$("dialog").forEach((dialog) => {
-    if (typeof dialog.close === "function" && dialog.open) {
-      dialog.close();
-    } else {
-      dialog.hidden = true;
-      dialog.removeAttribute("open");
-    }
-  });
-}
-
-function setAuthMode(mode) {
-  state.authMode = mode === "signup" ? "signup" : "login";
-
-  const signup = state.authMode === "signup";
-  const nameField = $("#auth-display-name");
-  const genderField = $("#auth-gender");
-  const submit = $("#auth-submit");
-  const toggle = $("#auth-mode-toggle");
-
-  for (const field of [nameField, genderField]) {
-    if (!field) continue;
-    field.hidden = !signup;
-    field.required = signup;
-    field.closest(".form-field, label")?.classList.toggle("is-visible", signup);
-  }
-
-  if (submit) submit.textContent = signup ? "Create account" : "Login";
-
-  if (toggle) {
-    toggle.textContent = signup
-      ? "Already have an account? Login"
-      : "New here? Create an account";
-  }
-
-  setMessage("#auth-message", "");
-}
-
-function openAuth(mode = "login") {
-  setAuthMode(mode);
-  openDialog("#auth-dialog");
-}
-
-function fallbackProfile(user) {
-  return {
-    uid: user.uid,
-    displayName: user.displayName || "Member",
-    gender: "other",
-    bio: "",
-    interests: [],
-    photoURL: ""
-  };
-}
+function asDate(value) { if (value?.toDate) return value.toDate(); const d = value ? new Date(value) : null; return d && !Number.isNaN(d.getTime()) ? d : null; }
+function fallbackProfile(user) { return { uid:user.uid, displayName:user.displayName || "Member", bio:"", gender:"", interests:"", languages:"", favourites:"" }; }
 
 async function loadProfile(user, createIfMissing = false) {
-  const profileRef = doc(db, "users", user.uid);
-  const snapshot = await getDoc(profileRef);
-
-  if (snapshot.exists()) {
-    state.profile = {
-      ...fallbackProfile(user),
-      ...snapshot.data(),
-      uid: user.uid
-    };
-
-    updateNavigation();
-    applyExperience();
-    return state.profile;
+  // This app consistently uses the `profiles/{uid}` collection.
+  const ref = doc(db, "profiles", user.uid); const snap = await getDoc(ref);
+  if (snap.exists()) state.profile = { ...fallbackProfile(user), ...snap.data(), uid:user.uid };
+  else {
+    state.profile = fallbackProfile(user);
+    if (createIfMissing) await setDoc(ref, { ...state.profile, createdAt:serverTimestamp(), updatedAt:serverTimestamp() });
   }
-
-  state.profile = fallbackProfile(user);
-
-  if (createIfMissing) {
-    const profile = {
-      ...state.profile,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    };
-
-    await setDoc(profileRef, profile);
-  }
-
-  updateNavigation();
-  applyExperience();
-  return state.profile;
+  updateUI(); return state.profile;
 }
-
-function updateNavigation() {
-  const loggedIn = Boolean(state.user);
-
-  const loginButton = $("#login-button");
-  const signupButton = $("#signup-button");
-  const accountMenu = $("#account-menu");
-
-  if (loginButton) loginButton.hidden = loggedIn;
-  if (signupButton) signupButton.hidden = loggedIn;
-  if (accountMenu) accountMenu.hidden = !loggedIn;
-
-  const accountName = $("#account-name");
-  if (accountName) {
-    accountName.textContent =
-      state.profile?.displayName ||
-      state.user?.displayName ||
-      "My account";
-  }
-
-  const avatar = $("#account-avatar");
-  if (avatar) {
-    avatar.textContent = (
-      state.profile?.displayName || "M"
-    ).slice(0, 1).toUpperCase();
-
-    if (state.profile?.photoURL) {
-      avatar.style.backgroundImage =
-        `url("${String(state.profile.photoURL).replace(/["\\]/g, "")}")`;
-    } else {
-      avatar.style.backgroundImage = "";
-    }
-  }
+function updateUI() {
+  const logged = Boolean(state.user);
+  $("#get-started").textContent = logged ? "My Account" : "Get Started";
+  $("#open-profile").textContent = logged ? "My Identity" : "Sign In";
+  const title = $("#hero-title"), quote = $("#hero-quote");
+  if (title) title.innerHTML = "Your world.<br><span>Your identity.</span>";
+  if (quote) quote.textContent = logged ? `Welcome, ${state.profile?.displayName || state.user?.displayName || "Member"}. Your Soul. Your Story. Your Identity.` : "Your Soul. Your Story. Your Identity.";
+  renderStories();
 }
-
-function applyExperience() {
-  const title = $("#hero-title");
-  const quote = $("#hero-quote");
-  const gender = state.profile?.gender || "other";
-
-  const messages = {
-    male: {
-      title: "Welcome, King.",
-      quote: "Your story. Your strength. Your world."
-    },
-    female: {
-      title: "Welcome, Queen.",
-      quote: "Your story. Your strength. Your world."
-    },
-    other: {
-      title: "Welcome to your world.",
-      quote: "Your Soul. Your Story. Your Identity."
-    }
-  };
-
-  const welcome = messages[gender] || messages.other;
-
-  if (title) title.textContent = welcome.title;
-  if (quote) quote.textContent = welcome.quote;
+function setAuthMode(mode) {
+  state.authMode = mode === "signup" ? "signup" : "login";
+  const signup = state.authMode === "signup";
+  $("#name-field").hidden = !signup; $("#auth-name").required = signup;
+  $("#auth-password").autocomplete = signup ? "new-password" : "current-password";
+  $("#login-tab").classList.toggle("active", !signup); $("#signup-tab").classList.toggle("active", signup);
+  $("#auth-title").textContent = signup ? "Create your identity." : "Your space starts here.";
+  $("#auth-submit").textContent = signup ? "Create Account" : "Sign In";
+  $("#forgot-password").hidden = signup; setMessage("#auth-error"); setMessage("#auth-success", "", "success");
 }
-
-function escapeHTML(value = "") {
-  return String(value).replace(/[&<>"']/g, (char) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#39;"
-  })[char]);
-}
-
-function formatDate(value) {
-  if (!value) return "";
-
-  const date = typeof value.toDate === "function"
-    ? value.toDate()
-    : new Date(value);
-
-  if (Number.isNaN(date.getTime())) return "";
-
-  return date.toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric"
-  });
-}
-function mediaMarkup(story) {
-  if (!story.mediaURL) return "";
-
-  const url = escapeHTML(story.mediaURL);
-  const type = story.mediaType || "";
-
-  if (type === "video") {
-    return `<video class="story-media" src="${url}" controls playsinline preload="metadata"></video>`;
-  }
-
-  if (type === "audio") {
-    return `<audio class="story-audio" src="${url}" controls preload="metadata"></audio>`;
-  }
-
-  return `<img class="story-media" src="${url}" alt="Story media" loading="lazy">`;
-}
-
-function storyMarkup(story) {
-  const owner = state.user?.uid === story.authorId;
-  const displayName = escapeHTML(story.authorName || "BE ONLY ONE member");
-  const title = escapeHTML(story.title || "Untitled story");
-  const text = escapeHTML(story.text || "");
-  const mood = story.mood
-    ? `<span class="story-mood">${escapeHTML(story.mood)}</span>`
-    : "";
-  const kind = escapeHTML(story.kind || "feeling");
-  const id = escapeHTML(story.id || "");
-
-  const reportButton = !owner && state.user
-    ? `<button type="button" data-action="report-story" data-id="${id}" data-author="${escapeHTML(story.authorId || "")}">Report</button>`
-    : "";
-
-  const deleteButton = owner
-    ? `<button type="button" class="story-delete" data-action="delete-story" data-id="${id}" aria-label="Delete story">Delete</button>`
-    : "";
-
-  return `
-    <article class="story-card" data-story-id="${id}">
-      <header class="story-card-header">
-        <div class="story-author-avatar" aria-hidden="true">${displayName.slice(0, 1).toUpperCase()}</div>
-        <div class="story-author-details">
-          <strong>${displayName}</strong>
-          <span>${escapeHTML(formatDate(story.createdAt))}</span>
-        </div>
-        ${deleteButton}
-      </header>
-
-      <div class="story-card-content">
-        <span class="story-kind">${kind}</span>
-        <h3>${title}</h3>
-        ${mood}
-        ${text ? `<p>${text.replace(/\n/g, "<br>")}</p>` : ""}
-        ${mediaMarkup(story)}
-      </div>
-
-      <footer class="story-card-footer">
-        <span>${escapeHTML(story.visibility || "public")}</span>
-        ${reportButton}
-      </footer>
-    </article>`;
-}
-
-function renderStories() {
-  const feed = $("#stories-feed");
-  if (!feed) return;
-
-  let stories = [...state.stories];
-
-  if (state.storyFilter === "mine") {
-    stories = stories.filter(
-      (story) => story.authorId === state.user?.uid
-    );
-  } else if (state.storyFilter === "connections") {
-    stories = stories.filter(
-      (story) =>
-        story.authorId === state.user?.uid ||
-        story.visibility === "connections"
-    );
-  } else {
-    stories = stories.filter(
-      (story) =>
-        story.authorId === state.user?.uid ||
-        story.visibility === "public"
-    );
-  }
-
-  stories.sort((a, b) => {
-    const dateA = a.createdAt?.toMillis?.() || 0;
-    const dateB = b.createdAt?.toMillis?.() || 0;
-    return dateB - dateA;
-  });
-
-  feed.innerHTML = stories.length
-    ? stories.map(storyMarkup).join("")
-    : `<div class="empty-state">
-         <h3>No stories to show yet</h3>
-         <p>Share a feeling or memory to start your world.</p>
-       </div>`;
-}
-
-async function fetchStories() {
-  if (!state.user) {
-    state.stories = [];
-    renderStories();
-    return;
-  }
-
-  try {
-    const collected = new Map();
-
-    const ownQuery = query(
-      collection(db, "stories"),
-      where("authorId", "==", state.user.uid),
-      limit(50)
-    );
-
-    const publicQuery = query(
-      collection(db, "stories"),
-      where("visibility", "==", "public"),
-      limit(50)
-    );
-
-    const [ownSnapshot, publicSnapshot] = await Promise.all([
-      getDocs(ownQuery),
-      getDocs(publicQuery)
-    ]);
-
-    ownSnapshot.forEach((item) => {
-      collected.set(item.id, { id: item.id, ...item.data() });
-    });
-
-    publicSnapshot.forEach((item) => {
-      collected.set(item.id, { id: item.id, ...item.data() });
-    });
-
-    // Connection-only stories need secure connection-aware rules and queries.
-    state.stories = [...collected.values()];
-    renderStories();
-  } catch (error) {
-    console.error("Story loading failed:", error);
-    showToast(explainError(error), "error");
-  }
+function requireLogin() {
+  if (state.user) return true;
+  setAuthMode("login"); openDialog("#auth-dialog"); toast("Please sign in to continue."); return false;
 }
 
 async function handleAuthSubmit(event) {
-  event.preventDefault();
-  if (state.busy) return;
-
-  const email = $("#auth-email")?.value.trim();
-  const password = $("#auth-password")?.value || "";
-  const displayName = $("#auth-display-name")?.value.trim();
-  const gender = $("#auth-gender")?.value || "other";
-
-  if (!email || !password) {
-    setMessage("#auth-message", "Email and password enter cheyyi.");
-    return;
-  }
-
-  if (state.authMode === "signup" && !displayName) {
-    setMessage("#auth-message", "Display name enter cheyyi.");
-    return;
-  }
-
-  setBusy(true);
-  setMessage("#auth-message", "");
-
+  event.preventDefault(); if (state.busy) return;
+  const email = $("#auth-email").value.trim(), password = $("#auth-password").value;
+  const displayName = $("#auth-name").value.trim();
+  if (state.authMode === "signup" && !displayName) { setMessage("#auth-error", "Please enter a display name."); return; }
+  state.busy = true; $("#auth-submit").disabled = true; setMessage("#auth-error");
   try {
     if (state.authMode === "signup") {
-      const credential = await createUserWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
-
-      const user = credential.user;
-      const cleanName = displayName.slice(0, 60);
-
-      await updateProfile(user, { displayName: cleanName });
-
-      const profile = {
-        uid: user.uid,
-        displayName: cleanName,
-        gender: ["male", "female", "other"].includes(gender)
-          ? gender
-          : "other",
-        bio: "",
-        interests: [],
-        photoURL: "",
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      };
-
-      await setDoc(doc(db, "users", user.uid), profile);
-
-      state.user = user;
-      state.profile = {
-        uid: user.uid,
-        displayName: cleanName,
-        gender: profile.gender,
-        bio: "",
-        interests: [],
-        photoURL: ""
-      };
-
-      updateNavigation();
-      applyExperience();
-      closeDialog("#auth-dialog");
-      showToast("Account created successfully!", "success");
-      await fetchStories();
+      const credential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = credential.user, cleanName = displayName.slice(0, 60);
+      await updateProfile(user, { displayName:cleanName });
+      const profile = { ...fallbackProfile(user), displayName:cleanName, createdAt:serverTimestamp(), updatedAt:serverTimestamp() };
+      await setDoc(doc(db, "profiles", user.uid), profile);
+      state.user = user; state.profile = { ...profile, createdAt:undefined, updatedAt:undefined };
+      closeDialog("#auth-dialog"); toast("Your account has been created.", "success");
     } else {
-      const credential = await signInWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
-
-      state.user = credential.user;
-      await loadProfile(credential.user, true);
-
-      updateNavigation();
-      closeDialog("#auth-dialog");
-      showToast("Welcome back!", "success");
-      await fetchStories();
+      const credential = await signInWithEmailAndPassword(auth, email, password);
+      state.user = credential.user; await loadProfile(credential.user, true);
+      closeDialog("#auth-dialog"); toast("Welcome back.", "success");
     }
-  } catch (error) {
-    console.error("Authentication error:", error);
-    setMessage("#auth-message", explainError(error));
-  } finally {
-    setBusy(false);
-  }
+    updateUI(); await fetchStories();
+  } catch (error) { setMessage("#auth-error", errorText(error)); }
+  finally { state.busy = false; $("#auth-submit").disabled = false; $("#auth-submit").textContent = state.authMode === "signup" ? "Create Account" : "Sign In"; }
 }
-
 async function handleForgotPassword() {
-  const email = $("#auth-email")?.value.trim();
-
-  if (!email) {
-    setMessage(
-      "#auth-message",
-      "Password reset kosam mundu email enter cheyyi."
-    );
-    return;
-  }
-
-  try {
-    await sendPasswordResetEmail(auth, email);
-    setMessage(
-      "#auth-message",
-      "Password reset link email ki pampincham.",
-      "success"
-    );
-  } catch (error) {
-    setMessage("#auth-message", explainError(error));
-  }
+  const email = $("#auth-email").value.trim();
+  if (!email) { setMessage("#auth-error", "Enter your email address first."); return; }
+  try { await sendPasswordResetEmail(auth, email); setMessage("#auth-success", "If this email is registered, a password reset message has been sent.", "success"); }
+  catch (error) { setMessage("#auth-error", errorText(error)); }
 }
+async function logout() { try { await signOut(auth); closeAllDialogs(); toast("Signed out.", "success"); } catch (e) { toast(errorText(e), "error"); } }
 
-function openStoryDialog() {
-  if (!state.user) {
-    openAuth("login");
-    showToast("Story share cheyyadaniki login avvali.");
-    return;
-  }
-
-  setMessage("#story-message", "");
-  $("#story-form")?.reset();
-
-  const progress = $("#upload-progress");
-  if (progress) progress.value = 0;
-
-  const progressBar = $("#upload-progress-bar");
-  if (progressBar) progressBar.style.width = "0%";
-
-  const progressText = $("#upload-progress-text");
-  if (progressText) progressText.textContent = "";
-
-  openDialog("#story-dialog");
+function openProfile() {
+  if (!requireLogin()) return;
+  const p = state.profile || fallbackProfile(state.user);
+  $("#profile-summary").innerHTML = `<h3>${escapeHTML(p.displayName || "Member")}</h3><p>${escapeHTML(p.bio || "Add a bio to tell your story.")}</p><p><strong>Email:</strong> ${escapeHTML(state.user.email || "")}</p><p><strong>Interests:</strong> ${escapeHTML(p.interests || "Not added yet")}</p>`;
+  $("#profile-name").value = p.displayName || ""; $("#profile-bio").value = p.bio || "";
+  $("#profile-gender").value = p.gender || ""; $("#profile-interests").value = Array.isArray(p.interests) ? p.interests.join(", ") : (p.interests || "");
+  $("#profile-languages").value = Array.isArray(p.languages) ? p.languages.join(", ") : (p.languages || "");
+  $("#profile-favourites").value = p.favourites || ""; setMessage("#profile-error"); openDialog("#profile-dialog");
 }
-
-async function handleStorySubmit(event) {
-  event.preventDefault();
-  if (!state.user || state.busy) return;
-
-  const title = $("#story-title")?.value.trim() || "";
-  const text = $("#story-text")?.value.trim() || "";
-  const kind = $("#story-kind")?.value || "feeling";
-  const mood = $("#story-mood")?.value || "";
-  const visibility = $("#story-visibility")?.value || "public";
-  const file = $("#story-media")?.files?.[0] || null;
-
-  if (!title && !text && !file) {
-    setMessage(
-      "#story-message",
-      "Title, story text, or media lo edhaina add cheyyi."
-    );
-    return;
-  }
-
-  if (!["feeling", "memory", "music"].includes(kind)) {
-    setMessage("#story-message", "Story type valid kaadu.");
-    return;
-  }
-
-  if (!["public", "connections", "private"].includes(visibility)) {
-    setMessage("#story-message", "Privacy setting valid kaadu.");
-    return;
-  }
-
-  setBusy(true);
-  setMessage("#story-message", "");
-
-  const progressBar = $("#upload-progress-bar");
-  const progressText = $("#upload-progress-text");
-
-  try {
-    let media = {
-      url: "",
-      publicId: "",
-      resourceType: "",
-      format: "",
-      bytes: 0,
-      duration: null
-    };
-
-    if (file) {
-      if (progressText) progressText.textContent = "Uploading media...";
-      if (progressBar) progressBar.style.width = "10%";
-
-      media = { ...media, ...(await uploadMedia(file)) };
-
-      if (progressBar) progressBar.style.width = "100%";
-      if (progressText) progressText.textContent = "Upload complete";
-    }
-
-    const mediaType = media.resourceType === "video"
-      ? "video"
-      : media.resourceType === "audio"
-        ? "audio"
-        : media.url ? "image" : "";
-
-    const story = {
-      authorId: state.user.uid,
-      authorName: (
-        state.profile?.displayName ||
-        state.user.displayName ||
-        "Member"
-      ).slice(0, 60),
-      title: title.slice(0, 200),
-      text: text.slice(0, 5000),
-      kind,
-      mood: mood.slice(0, 100),
-      visibility,
-      mediaURL: media.url || "",
-      mediaPublicId: media.publicId || "",
-      mediaType,
-      mediaFormat: media.format || "",
-      mediaBytes: Number(media.bytes) || 0,
-      mediaDuration: Number.isFinite(Number(media.duration))
-        ? Number(media.duration)
-        : null,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    };
-
-    await addDoc(collection(db, "stories"), story);
-
-    closeDialog("#story-dialog");
-    showToast("Your story has been published!", "success");
-    await fetchStories();
-  } catch (error) {
-    console.error("Story publish failed:", error);
-    setMessage("#story-message", explainError(error));
-  } finally {
-    setBusy(false);
-  }
-}
-async function deleteStory(storyId) {
-  if (!state.user || !storyId) return;
-  if (!window.confirm("Ee story delete cheyyala?")) return;
-
-  try {
-    const storyRef = doc(db, "stories", storyId);
-    const snapshot = await getDoc(storyRef);
-
-    if (!snapshot.exists()) {
-      showToast("Story already deleted.");
-      await fetchStories();
-      return;
-    }
-
-    if (snapshot.data().authorId !== state.user.uid) {
-      showToast("Nee own story matrame delete cheyyagalavu.", "error");
-      return;
-    }
-
-    await deleteDoc(storyRef);
-    showToast("Story deleted.", "success");
-    await fetchStories();
-  } catch (error) {
-    console.error("Delete story failed:", error);
-    showToast(explainError(error), "error");
-  }
-}
-
-async function reportStory(storyId, authorId) {
-  if (!state.user) {
-    openAuth("login");
-    return;
-  }
-
-  const reason = window.prompt(
-    "Report reason enter cheyyi (1–500 characters):"
-  );
-
-  if (reason === null) return;
-
-  const cleanedReason = reason.trim();
-
-  if (!cleanedReason || cleanedReason.length > 500) {
-    showToast("Reason 1–500 characters undali.", "error");
-    return;
-  }
-
-  try {
-    await addDoc(collection(db, "reports"), {
-      reporterId: state.user.uid,
-      storyId: String(storyId),
-      reportedUserId: String(authorId || ""),
-      reason: cleanedReason,
-      status: "pending",
-      createdAt: serverTimestamp()
-    });
-
-    showToast("Report submitted. Thank you.", "success");
-  } catch (error) {
-    console.error("Report failed:", error);
-    showToast(explainError(error), "error");
-  }
-}
-
-async function loadRequests() {
-  if (!state.user) return { incoming: [], outgoing: [] };
-
-  const requests = collection(db, "connectionRequests");
-
-  const [incomingSnapshot, outgoingSnapshot] = await Promise.all([
-    getDocs(query(
-      requests,
-      where("to", "==", state.user.uid),
-      limit(100)
-    )),
-    getDocs(query(
-      requests,
-      where("from", "==", state.user.uid),
-      limit(100)
-    ))
-  ]);
-
-  return {
-    incoming: incomingSnapshot.docs.map(
-      (item) => ({ id: item.id, ...item.data() })
-    ),
-    outgoing: outgoingSnapshot.docs.map(
-      (item) => ({ id: item.id, ...item.data() })
-    )
+async function saveProfile(event) {
+  event.preventDefault(); if (!requireLogin()) return;
+  const name = $("#profile-name").value.trim(); if (!name) { setMessage("#profile-error", "Display name is required."); return; }
+  const data = {
+    uid:state.user.uid, displayName:name.slice(0,60), bio:$("#profile-bio").value.trim().slice(0,300),
+    gender:$("#profile-gender").value, interests:$("#profile-interests").value.trim().slice(0,300),
+    languages:$("#profile-languages").value.trim().slice(0,150), favourites:$("#profile-favourites").value.trim().slice(0,500), updatedAt:serverTimestamp()
   };
-}
-
-async function loadConnectionsContent() {
-  const container = $("#connections-content");
-  if (!container) return;
-
-  if (!state.user) {
-    container.textContent = "Please login to view connections.";
-    return;
-  }
-
-  container.textContent = "Loading...";
-
   try {
-    const { incoming, outgoing } = await loadRequests();
-
-    if (state.connectionTab === "requests") {
-      const pending = incoming.filter(
-        (request) => request.status === "pending"
-      );
-
-      container.innerHTML = pending.length
-        ? pending.map((request) => `
-          <article class="connection-row">
-            <p>Connection request from
-              <strong>${escapeHTML(request.from)}</strong>
-            </p>
-            <button type="button"
-              data-action="respond-request"
-              data-id="${escapeHTML(request.id)}"
-              data-status="accepted">Accept</button>
-            <button type="button"
-              data-action="respond-request"
-              data-id="${escapeHTML(request.id)}"
-              data-status="rejected">Decline</button>
-          </article>
-        `).join("")
-        : `<div class="empty-state"><p>No pending requests.</p></div>`;
-
-      return;
-    }
-
-    if (state.connectionTab === "connections") {
-      container.innerHTML = `
-        <div class="empty-state">
-          <p>Accepted connections will appear here after secure
-          connection-pair creation is implemented on a trusted backend.</p>
-        </div>`;
-      return;
-    }
-
-    const usersSnapshot = await getDocs(
-      query(collection(db, "users"), limit(50))
-    );
-
-    const outgoingPending = new Set(
-      outgoing
-        .filter((request) => request.status === "pending")
-        .map((request) => request.to)
-    );
-
-    const users = usersSnapshot.docs
-      .map((item) => ({ uid: item.id, ...item.data() }))
-      .filter((person) => person.uid !== state.user.uid);
-
-    container.innerHTML = users.length
-      ? users.map((person) => `
-        <article class="connection-row">
-          <div>
-            <strong>${escapeHTML(person.displayName || "Member")}</strong>
-            <p>${escapeHTML(person.bio || "A member of BE ONLY ONE")}</p>
-          </div>
-          ${
-            outgoingPending.has(person.uid)
-              ? `<span>Request pending</span>`
-              : `<button type="button"
-                   data-action="send-request"
-                   data-id="${escapeHTML(person.uid)}">Connect</button>`
-          }
-        </article>
-      `).join("")
-      : `<div class="empty-state"><p>No members to discover yet.</p></div>`;
-  } catch (error) {
-    console.error("Connections loading failed:", error);
-    container.textContent = explainError(error);
-  }
+    await updateProfile(state.user, { displayName:data.displayName });
+    await setDoc(doc(db, "profiles", state.user.uid), data, { merge:true });
+    state.profile = { ...state.profile, ...data }; updateUI(); openProfile(); toast("Identity updated.", "success");
+  } catch (e) { setMessage("#profile-error", errorText(e)); }
 }
 
-async function sendConnectionRequest(toUid) {
-  if (!state.user) {
-    openAuth("login");
-    return;
-  }
-
-  if (!toUid || toUid === state.user.uid) return;
-
-  try {
-    const existing = await getDocs(query(
-      collection(db, "connectionRequests"),
-      where("from", "==", state.user.uid),
-      where("to", "==", toUid),
-      limit(1)
-    ));
-
-    if (!existing.empty) {
-      showToast("You already sent a request.");
-      return;
-    }
-
-    await addDoc(collection(db, "connectionRequests"), {
-      from: state.user.uid,
-      to: toUid,
-      status: "pending",
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    });
-
-    showToast("Connection request sent!", "success");
-    await loadConnectionsContent();
-  } catch (error) {
-    console.error("Send request failed:", error);
-    showToast(explainError(error), "error");
-  }
+function openStory(kind = "feeling") {
+  if (!requireLogin()) return;
+  $("#story-form").reset(); $("#story-kind").value = ["feeling","memory","music"].includes(kind) ? kind : "feeling";
+  setMessage("#story-error"); $("#upload-progress").hidden = true; $("#upload-progress-bar").value = 0; openDialog("#story-dialog");
 }
-
-async function respondToRequest(requestId, status) {
-  if (
-    !state.user ||
-    !requestId ||
-    !["accepted", "rejected"].includes(status)
-  ) return;
-
-  try {
-    const requestRef = doc(db, "connectionRequests", requestId);
-    const snapshot = await getDoc(requestRef);
-
-    if (!snapshot.exists()) {
-      showToast("Request not found.", "error");
-      return;
-    }
-
-    const requestData = snapshot.data();
-
-    if (
-      requestData.to !== state.user.uid ||
-      requestData.status !== "pending"
-    ) {
-      showToast("You cannot update this request.", "error");
-      return;
-    }
-
-    await updateDoc(requestRef, {
-      status,
-      updatedAt: serverTimestamp()
-    });
-
-    showToast(
-      status === "accepted"
-        ? "Request accepted. Secure connection-pair backend is still required."
-        : "Request declined.",
-      status === "accepted" ? "info" : "success"
-    );
-
-    await loadConnectionsContent();
-  } catch (error) {
-    console.error("Respond to request failed:", error);
-    showToast(explainError(error), "error");
-  }
-}
-
-async function openProfile() {
-  const content = $("#profile-content");
-  if (!content) return;
-
-  if (!state.user) {
-    openAuth("login");
-    return;
-  }
-
-  const profile = state.profile || fallbackProfile(state.user);
-
-  content.innerHTML = `
-    <div class="profile-view">
-      <h3>${escapeHTML(profile.displayName || "Member")}</h3>
-      <p>${escapeHTML(profile.bio || "Add a bio to tell your story.")}</p>
-      <p><strong>Gender:</strong> ${escapeHTML(profile.gender || "other")}</p>
-      <p><strong>Email:</strong> ${escapeHTML(state.user.email || "")}</p>
-      <button type="button" data-action="edit-profile">Edit profile</button>
-    </div>`;
-
-  openDialog("#profile-dialog");
-}
-
-async function editProfile() {
-  if (!state.user) return;
-
-  const currentName =
-    state.profile?.displayName || state.user.displayName || "";
-  const currentBio = state.profile?.bio || "";
-
-  const displayName = window.prompt("Display name:", currentName);
-  if (displayName === null) return;
-
-  const bio = window.prompt("Bio:", currentBio);
-  if (bio === null) return;
-
-  const cleanedName = displayName.trim().slice(0, 60);
-  const cleanedBio = bio.trim().slice(0, 500);
-
-  if (!cleanedName) {
-    showToast("Display name cannot be empty.", "error");
-    return;
-  }
-
-  try {
-    await updateProfile(state.user, { displayName: cleanedName });
-
-    await updateDoc(doc(db, "users", state.user.uid), {
-      displayName: cleanedName,
-      bio: cleanedBio,
-      updatedAt: serverTimestamp()
-    });
-
-    state.profile = {
-      ...state.profile,
-      displayName: cleanedName,
-      bio: cleanedBio
-    };
-
-    updateNavigation();
-    applyExperience();
-    await openProfile();
-    showToast("Profile updated.", "success");
-  } catch (error) {
-    console.error("Profile update failed:", error);
-    showToast(explainError(error), "error");
-  }
-      }
-async function openSettings() {
-  const content = $("#settings-content");
-  if (!content) return;
-
-  if (!state.user) {
-    openAuth("login");
-    return;
-  }
-
-  content.innerHTML = `
-    <section class="settings-section">
-      <h3>Account</h3>
-      <p>${escapeHTML(state.user.email || "")}</p>
-      <p>Your stories can be public, connections-only, or private.</p>
-      <button type="button" data-action="logout">Log out</button>
-    </section>`;
-
-  openDialog("#settings-dialog");
-}
-
-function setConnectionTab(tab) {
-  state.connectionTab = [
-    "connections",
-    "requests",
-    "discover"
-  ].includes(tab) ? tab : "discover";
-
-  $$("[data-connection-tab]").forEach((button) => {
-    button.classList.toggle(
-      "active",
-      button.dataset.connectionTab === state.connectionTab
-    );
+async function uploadSelectedFile(file) {
+  // Supports either progress-aware or one-argument uploadMediaFile helpers.
+  const result = await uploadMediaFile(file, percent => {
+    $("#upload-progress").hidden = false; $("#upload-progress-bar").value = Number(percent) || 0;
+    $("#upload-progress-text").textContent = `Uploading ${Math.round(Number(percent) || 0)}%`;
   });
-
-  void loadConnectionsContent();
+  const url = typeof result === "string" ? result : result?.url;
+  if (!url) throw new Error("Cloudinary upload did not return a media URL. Check cloudinary-config.js.");
+  return { url, publicId:result?.publicId || result?.public_id || "", format:result?.format || "", bytes:Number(result?.bytes) || file.size, duration:result?.duration ?? null };
 }
-
-function openConnections(tab = "discover") {
-  if (!state.user) {
-    openAuth("login");
-    return;
-  }
-
-  setConnectionTab(tab);
-  openDialog("#connections-dialog");
-}
-
-function openFeature(title, description) {
-  const titleNode = $("#feature-dialog-title");
-  const descriptionNode = $("#feature-dialog-description");
-
-  if (titleNode) {
-    titleNode.textContent = title || "Coming soon";
-  }
-
-  if (descriptionNode) {
-    descriptionNode.textContent = description ||
-      "This feature will be available in a future release.";
-  }
-
-  openDialog("#feature-dialog");
-}
-
-async function logout() {
+async function submitStory(event) {
+  event.preventDefault(); if (!requireLogin() || state.busy) return;
+  const title = $("#story-title-input").value.trim(), text = $("#story-text").value.trim();
+  const kind = $("#story-kind").value, mood = $("#story-mood").value, visibility = $("#story-visibility").value, file = $("#story-media").files?.[0] || null;
+  if (!title && !text && !file) { setMessage("#story-error", "Add a title, story text, or media first."); return; }
+  if (!(["feeling","memory","music"].includes(kind)) || !(["public","connections","private"].includes(visibility))) { setMessage("#story-error", "Please choose valid story and privacy options."); return; }
+  state.busy = true; $("#publish-story").disabled = true; setMessage("#story-error");
   try {
-    await signOut(auth);
-    closeAllDialogs();
-    showToast("Logged out.", "success");
-  } catch (error) {
-    console.error("Logout failed:", error);
-    showToast(explainError(error), "error");
-  }
+    let media = { url:"", publicId:"", format:"", bytes:0, duration:null }, mediaType = "";
+    if (file) {
+      const type = file.type || "";
+      const allowed = /^(image\/(jpeg|png|webp|gif)|video\/(mp4|webm)|audio\/(mpeg|mp4|ogg|wav|webm))$/.test(type);
+      const max = type.startsWith("image/") ? 10*1024*1024 : type.startsWith("video/") ? 50*1024*1024 : 20*1024*1024;
+      if (!allowed) throw new Error("Unsupported media format.");
+      if (file.size > max) throw new Error("File is too large for the selected media type.");
+      media = await uploadSelectedFile(file); mediaType = type.startsWith("video/") ? "video" : type.startsWith("audio/") ? "audio" : "image";
+    }
+    const story = {
+      authorId:state.user.uid, authorName:(state.profile?.displayName || state.user.displayName || "Member").slice(0,60),
+      title:title.slice(0,100), text:text.slice(0,5000), kind, type:kind, mood:mood.slice(0,100), visibility,
+      mediaURL:media.url, mediaUrl:media.url, mediaPublicId:media.publicId, mediaType, mediaFormat:media.format, mediaBytes:media.bytes, mediaDuration:media.duration,
+      createdAt:serverTimestamp(), updatedAt:serverTimestamp()
+    };
+    await addDoc(collection(db, "stories"), story); closeDialog("#story-dialog"); toast("Story published.", "success"); await fetchStories();
+  } catch (e) { setMessage("#story-error", errorText(e)); }
+  finally { state.busy = false; $("#publish-story").disabled = false; $("#upload-progress").hidden = true; }
+}
+function mediaMarkup(story) {
+  const url = story.mediaURL || story.mediaUrl || ""; if (!url) return "";
+  const safe = escapeHTML(url);
+  if (story.mediaType === "audio" || story.kind === "music") return `<audio class="story-audio" src="${safe}" controls preload="metadata"></audio>`;
+  if (story.mediaType === "video" || safe.includes("/video/upload/")) return `<video class="story-media" src="${safe}" controls playsinline preload="metadata"></video>`;
+  return `<img class="story-media" src="${safe}" alt="Story media" loading="lazy">`;
+}
+function storyMarkup(story) {
+  const own = story.authorId === state.user?.uid, date = asDate(story.createdAt);
+  return `<article class="story-card"><header class="story-card-header"><strong>${escapeHTML(story.authorName || "BE ONLY ONE member")}</strong><span>${date ? escapeHTML(date.toLocaleDateString()) : ""}</span>${own ? `<button type="button" data-action="delete-story" data-id="${escapeHTML(story.id)}">Delete</button>` : ""}</header><div class="story-card-content"><span class="story-kind">${escapeHTML(story.kind || story.type || "feeling")}</span><h3>${escapeHTML(story.title || "Untitled moment")}</h3>${story.mood ? `<p>${escapeHTML(story.mood)}</p>` : ""}${story.text ? `<p>${escapeHTML(story.text).replace(/\n/g,"<br>")}</p>` : ""}${mediaMarkup(story)}</div><footer class="story-card-footer"><span>${escapeHTML(story.visibility || "public")}</span>${!own && state.user ? `<button type="button" data-action="report-story" data-id="${escapeHTML(story.id)}" data-author="${escapeHTML(story.authorId || "")}">Report</button>` : ""}</footer></article>`;
+}
+function renderStories() {
+  const feed = $("#stories-feed"); if (!feed) return;
+  let list = [...state.stories];
+  if (state.storyFilter === "mine") list = list.filter(s => s.authorId === state.user?.uid);
+  else if (state.storyFilter === "connections") list = list.filter(s => s.authorId === state.user?.uid || s.visibility === "connections");
+  else list = list.filter(s => s.visibility === "public" || s.authorId === state.user?.uid);
+  list.sort((a,b) => (asDate(b.createdAt)?.getTime() || 0) - (asDate(a.createdAt)?.getTime() || 0));
+  feed.innerHTML = list.length ? list.map(storyMarkup).join("") : `<div class="empty-state"><p>No stories to show yet.</p><p>Share a feeling or memory to start your world.</p></div>`;
+}
+async function fetchStories() {
+  try {
+    const found = new Map();
+    if (state.user) {
+      const own = await getDocs(query(collection(db,"stories"), where("authorId","==",state.user.uid), limit(50)));
+      own.forEach(d => found.set(d.id,{id:d.id,...d.data()}));
+    }
+    const publicSnap = await getDocs(query(collection(db,"stories"), where("visibility","==","public"), limit(50)));
+    publicSnap.forEach(d => found.set(d.id,{id:d.id,...d.data()})); state.stories = [...found.values()]; renderStories();
+  } catch (e) { toast(errorText(e), "error"); }
+}
+async function deleteStory(id) {
+  if (!requireLogin() || !id || !confirm("Delete this story?")) return;
+  try { const ref = doc(db,"stories",id), snap = await getDoc(ref); if (!snap.exists() || snap.data().authorId !== state.user.uid) throw new Error("You can delete only your own stories."); await deleteDoc(ref); toast("Story deleted.","success"); await fetchStories(); }
+  catch (e) { toast(errorText(e),"error"); }
+}
+async function reportStory(id, authorId) {
+  if (!requireLogin()) return; const reason = prompt("Why are you reporting this story?"); if (reason === null) return;
+  if (!reason.trim() || reason.trim().length > 500) { toast("Please enter a reason between 1 and 500 characters.","error"); return; }
+  try { await addDoc(collection(db,"reports"),{reporterId:state.user.uid,storyId:id,reportedUserId:authorId || "",reason:reason.trim(),status:"pending",createdAt:serverTimestamp()}); toast("Report submitted.","success"); }
+  catch (e) { toast(errorText(e),"error"); }
+}
+
+function openConnections(tab="discover") { if (!requireLogin()) return; setConnectionTab(tab); openDialog("#connections-dialog"); }
+function setConnectionTab(tab) { state.connectionTab = ["discover","requests","connections"].includes(tab) ? tab : "discover"; $$("[data-connection-tab]").forEach(b=>b.classList.toggle("active",b.dataset.connectionTab===state.connectionTab)); void loadConnections(); }
+async function loadConnections() {
+  const box = $("#connections-content"); if (!box) return; if (!state.user) { box.textContent="Sign in to manage connections."; return; } box.textContent="Loading…";
+  try {
+    if (state.connectionTab === "discover") {
+      const snap = await getDocs(query(collection(db,"profiles"),limit(50)));
+      const people = snap.docs.map(d=>({uid:d.id,...d.data()})).filter(p=>p.uid!==state.user.uid);
+      const sentSnap = await getDocs(query(collection(db,"connectionRequests"),where("senderId","==",state.user.uid),limit(100)));
+      const sent = new Set(sentSnap.docs.map(d=>d.data().receiverId));
+      box.innerHTML = people.length ? people.map(p=>`<article class="connection-row"><div><strong>${escapeHTML(p.displayName||"Member")}</strong><p>${escapeHTML(p.bio||"A BE ONLY ONE member")}</p></div>${sent.has(p.uid)?"<span>Request sent</span>":`<button type="button" data-action="send-request" data-id="${escapeHTML(p.uid)}">Connect</button>`}</article>`).join("") : "<p>No other profiles found yet.</p>";
+    } else if (state.connectionTab === "requests") {
+      const snap = await getDocs(query(collection(db,"connectionRequests"),where("receiverId","==",state.user.uid),limit(100)));
+      const requests = snap.docs.map(d=>({id:d.id,...d.data()})).filter(r=>!r.status||r.status==="pending");
+      box.innerHTML = requests.length ? requests.map(r=>`<article class="connection-row"><p>Request from <strong>${escapeHTML(r.senderId||"Member")}</strong></p><button type="button" data-action="accept-request" data-id="${escapeHTML(r.id)}" data-sender="${escapeHTML(r.senderId||"")}">Accept</button><button type="button" data-action="reject-request" data-id="${escapeHTML(r.id)}">Decline</button></article>`).join("") : "<p>No incoming requests.</p>";
+    } else {
+      const [a,b] = await Promise.all([getDocs(query(collection(db,"connections"),where("userA","==",state.user.uid),limit(100))),getDocs(query(collection(db,"connections"),where("userB","==",state.user.uid),limit(100)))]);
+      const people = [...a.docs.map(d=>({id:d.id,uid:d.data().userB})),...b.docs.map(d=>({id:d.id,uid:d.data().userA}))];
+      box.innerHTML = people.length ? people.map(p=>`<article class="connection-row"><strong>${escapeHTML(p.uid||"Member")}</strong><button type="button" data-action="disconnect" data-id="${escapeHTML(p.uid||"")}">Disconnect</button></article>`).join("") : "<p>No connections yet.</p>";
+    }
+  } catch (e) { box.textContent = errorText(e); }
+}
+async function sendRequest(targetUserId) {
+  if (!requireLogin() || !targetUserId || targetUserId===state.user.uid) return;
+  try {
+    const existing = await getDocs(query(collection(db,"connectionRequests"),where("senderId","==",state.user.uid),where("receiverId","==",targetUserId),limit(1)));
+    if (!existing.empty) { toast("You already sent a request."); return; }
+    await addDoc(collection(db,"connectionRequests"),{senderId:state.user.uid,receiverId:targetUserId,status:"pending",createdAt:serverTimestamp()}); toast("Connection request sent.","success"); await loadConnections();
+  } catch (e) { toast(errorText(e),"error"); }
+}
+async function callManageConnection(action,targetUserId) {
+  if (!targetUserId) throw new Error("Connection member ID is missing.");
+  const callable = httpsCallable(functions,"manageConnection"); await callable({action,targetUserId});
+}
+async function connectionAction(button) {
+  const {action,id} = {action:button.dataset.action,id:button.dataset.id};
+  try {
+    if (action === "send-request") await sendRequest(id);
+    else if (action === "accept-request") { await callManageConnection("accept",button.dataset.sender); toast("Connection accepted.","success"); await loadConnections(); }
+    else if (action === "reject-request") { const ref=doc(db,"connectionRequests",id),snap=await getDoc(ref); if(!snap.exists()||snap.data().receiverId!==state.user.uid) throw new Error("You cannot decline this request."); await deleteDoc(ref); toast("Request declined.","success"); await loadConnections(); }
+    else if (action === "disconnect") { await callManageConnection("disconnect",id); toast("Disconnected.","success"); await loadConnections(); }
+  } catch (e) { toast(errorText(e),"error"); }
 }
 
 function bindEvents() {
-  $("#auth-form")?.addEventListener("submit", handleAuthSubmit);
-  $("#story-form")?.addEventListener("submit", handleStorySubmit);
-
-  $("#auth-mode-toggle")?.addEventListener("click", () => {
-    setAuthMode(
-      state.authMode === "signup" ? "login" : "signup"
-    );
-  });
-
-  $$('[data-action="forgot-password"]').forEach((button) => {
-    button.addEventListener("click", handleForgotPassword);
-  });
-
-  document.addEventListener("click", async (event) => {
-    const target = event.target instanceof Element
-      ? event.target
-      : null;
-
-    const button = target?.closest("[data-action]");
-    if (!button) return;
-
-    const action = button.dataset.action;
-    const id = button.dataset.id;
-
-    try {
-      switch (action) {
-        case "get-started":
-          openStoryDialog();
-          break;
-
-        case "open-auth":
-          openAuth(button.dataset.mode || "login");
-          break;
-
-        case "open-profile":
-          await openProfile();
-          break;
-
-        case "edit-profile":
-          await editProfile();
-          break;
-
-        case "view-connections":
-          openConnections("discover");
-          break;
-
-        case "open-settings":
-          await openSettings();
-          break;
-
-        case "logout":
-          await logout();
-          break;
-
-        case "close-dialog": {
-          const parentDialog = button.closest("dialog");
-          const selector = button.dataset.dialog ||
-            (parentDialog ? `#${parentDialog.id}` : "");
-
-          if (selector) closeDialog(selector);
-          break;
-        }
-
-        case "new-story":
-          openStoryDialog();
-          break;
-
-        case "delete-story":
-          await deleteStory(id);
-          break;
-
-        case "report-story":
-          await reportStory(id, button.dataset.author);
-          break;
-
-        case "send-request":
-          await sendConnectionRequest(id);
-          break;
-
-        case "respond-request":
-          await respondToRequest(id, button.dataset.status);
-          break;
-
-        case "feature":
-          openFeature(
-            button.dataset.title,
-            button.dataset.description
-          );
-          break;
-
-        default:
-          break;
-      }
-    } catch (error) {
-      console.error(`Action "${action}" failed:`, error);
-      showToast(explainError(error), "error");
-    }
-  });
-
-  $$("[data-story-filter]").forEach((button) => {
-    button.addEventListener("click", () => {
-      state.storyFilter = button.dataset.storyFilter || "public";
-
-      $$("[data-story-filter]").forEach((item) => {
-        item.classList.toggle("active", item === button);
-      });
-
-      renderStories();
-    });
-  });
-
-  $$("[data-connection-tab]").forEach((button) => {
-    button.addEventListener("click", () => {
-      setConnectionTab(button.dataset.connectionTab);
-    });
-  });
-
-  $("#menu-toggle")?.addEventListener("click", () => {
-    $("#account-menu")?.classList.toggle("menu-open");
-  });
-
-  const year = $("#current-year");
-  if (year) {
-    year.textContent = String(new Date().getFullYear());
-  }
+  $("#login-tab").addEventListener("click",()=>setAuthMode("login")); $("#signup-tab").addEventListener("click",()=>setAuthMode("signup"));
+  $("#auth-form").addEventListener("submit",handleAuthSubmit); $("#forgot-password").addEventListener("click",handleForgotPassword);
+  $("#profile-form").addEventListener("submit",saveProfile); $("#story-form").addEventListener("submit",submitStory);
+  $("#get-started").addEventListener("click",()=>state.user?openProfile():(setAuthMode("login"),openDialog("#auth-dialog")));
+  $("#open-profile").addEventListener("click",openProfile); $("#feature-identity").addEventListener("click",openProfile);
+  $("#view-connections").addEventListener("click",()=>openConnections("discover")); $("#community-connections").addEventListener("click",()=>openConnections("discover")); $("#feature-connections").addEventListener("click",()=>openConnections("discover"));
+  $("#create-feeling").addEventListener("click",()=>openStory("feeling")); $("#create-story").addEventListener("click",()=>openStory("feeling"));
+  $("#feature-feeling").addEventListener("click",()=>{state.storyFilter="public";renderStories();$("#stories").scrollIntoView({behavior:"smooth"});});
+  $("#feature-music").addEventListener("click",()=>{state.storyFilter="public";renderStories();$("#stories").scrollIntoView({behavior:"smooth"});});
+  $("#open-feature").addEventListener("click",()=>$("#features").scrollIntoView({behavior:"smooth"})); $("#load-more-stories").addEventListener("click",fetchStories);
+  $("#open-settings").addEventListener("click",()=>{if(requireLogin())openDialog("#settings-dialog");}); $("#settings-profile").addEventListener("click",()=>{closeDialog("#settings-dialog");openProfile();});
+  $("#settings-signout").addEventListener("click",logout); $("#sign-out").addEventListener("click",logout);
+  $("#profile-my-stories").addEventListener("click",()=>{closeDialog("#profile-dialog");state.storyFilter="mine";$$("[data-story-filter]").forEach(b=>b.classList.toggle("active",b.dataset.storyFilter==="mine"));renderStories();$("#stories").scrollIntoView({behavior:"smooth"});});
+  $$('[data-story-filter]').forEach(b=>b.addEventListener("click",()=>{state.storyFilter=b.dataset.storyFilter;$$('[data-story-filter]').forEach(x=>x.classList.toggle("active",x===b));renderStories();}));
+  $$("[data-connection-tab]").forEach(b=>b.addEventListener("click",()=>setConnectionTab(b.dataset.connectionTab)));
+  document.addEventListener("click",event=>{const button=event.target instanceof Element?event.target.closest("[data-action]"):null;if(!button)return;const action=button.dataset.action;if(["send-request","accept-request","reject-request","disconnect"].includes(action))void connectionAction(button);if(action==="delete-story")void deleteStory(button.dataset.id);if(action==="report-story")void reportStory(button.dataset.id,button.dataset.author);});
+  $$('[data-close-dialog]').forEach(b=>b.addEventListener("click",()=>b.closest("dialog")?.close()));
+  $$('dialog').forEach(d=>d.addEventListener("click",e=>{if(e.target===d)d.close();}));
+  $("#menu-toggle").addEventListener("click",()=>{const nav=$("#primary-navigation"),isOpen=nav.classList.toggle("menu-open");$("#menu-toggle").setAttribute("aria-expanded",String(isOpen));});
+  $("#primary-navigation").querySelectorAll("a,button").forEach(el=>el.addEventListener("click",()=>{$("#primary-navigation").classList.remove("menu-open");$("#menu-toggle").setAttribute("aria-expanded","false");}));
+  $("#current-year").textContent=String(new Date().getFullYear());
 }
-
 function init() {
-  bindEvents();
-  setAuthMode("login");
-  updateNavigation();
-
-  onAuthStateChanged(auth, async (user) => {
-    state.user = user;
-
-    if (!user) {
-      state.profile = null;
-      state.stories = [];
-      updateNavigation();
-      renderStories();
-      return;
-    }
-
-    try {
-      // Profile creation is handled by explicit signup/login flows.
-      await loadProfile(user, false);
-      await fetchStories();
-    } catch (error) {
-      console.error("Loading signed-in profile failed:", error);
-      showToast(explainError(error), "error");
-    }
+  bindEvents(); setAuthMode("login");
+  onAuthStateChanged(auth,async user=>{
+    state.user=user;
+    if(!user){state.profile=null;state.stories=[];updateUI();return;}
+    try{await loadProfile(user,true);updateUI();await fetchStories();}catch(e){toast(errorText(e),"error");}
   });
 }
-
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", init, { once: true });
-} else {
-  init();
-        }
+if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init,{once:true});else init();
