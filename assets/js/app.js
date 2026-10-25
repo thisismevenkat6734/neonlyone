@@ -209,7 +209,11 @@ async function fetchStories() {
     }
     const publicSnap = await getDocs(query(collection(db,"stories"), where("visibility","==","public"), limit(50)));
     publicSnap.forEach(d => found.set(d.id,{id:d.id,...d.data()})); state.stories = [...found.values()]; renderStories();
-  } catch (e) { toast(errorText(e), "error"); }
+  } catch (e) {
+    const feed = $("#stories-feed");
+    if (feed) feed.innerHTML = `<div class="empty-state"><h3>Stories could not load</h3><p>${escapeHTML(errorText(e))}</p><p>Check Firebase configuration, Firestore rules, and the browser console.</p><button type="button" class="btn btn-secondary" data-action="refresh-stories">Try again</button></div>`;
+    toast(errorText(e), "error");
+  }
 }
 async function deleteStory(id) {
   if (!requireLogin() || !id || !confirm("Delete this story?")) return;
@@ -283,7 +287,7 @@ function bindEvents() {
   $("#profile-my-stories").addEventListener("click",()=>{closeDialog("#profile-dialog");state.storyFilter="mine";$$("[data-story-filter]").forEach(b=>b.classList.toggle("active",b.dataset.storyFilter==="mine"));renderStories();$("#stories").scrollIntoView({behavior:"smooth"});});
   $$('[data-story-filter]').forEach(b=>b.addEventListener("click",()=>{state.storyFilter=b.dataset.storyFilter;$$('[data-story-filter]').forEach(x=>x.classList.toggle("active",x===b));renderStories();}));
   $$("[data-connection-tab]").forEach(b=>b.addEventListener("click",()=>setConnectionTab(b.dataset.connectionTab)));
-  document.addEventListener("click",event=>{const button=event.target instanceof Element?event.target.closest("[data-action]"):null;if(!button)return;const action=button.dataset.action;if(["send-request","accept-request","reject-request","disconnect"].includes(action))void connectionAction(button);if(action==="delete-story")void deleteStory(button.dataset.id);if(action==="report-story")void reportStory(button.dataset.id,button.dataset.author);});
+  document.addEventListener("click",event=>{const button=event.target instanceof Element?event.target.closest("[data-action]"):null;if(!button)return;const action=button.dataset.action;if(["send-request","accept-request","reject-request","disconnect"].includes(action))void connectionAction(button);if(action==="delete-story")void deleteStory(button.dataset.id);if(action==="report-story")void reportStory(button.dataset.id,button.dataset.author);if(action==="refresh-stories")void fetchStories();});
   $$('[data-close-dialog]').forEach(b=>b.addEventListener("click",()=>b.closest("dialog")?.close()));
   $$('dialog').forEach(d=>d.addEventListener("click",e=>{if(e.target===d)d.close();}));
   $("#menu-toggle").addEventListener("click",()=>{const nav=$("#primary-navigation"),isOpen=nav.classList.toggle("menu-open");$("#menu-toggle").setAttribute("aria-expanded",String(isOpen));});
