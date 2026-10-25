@@ -2,453 +2,561 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#100b24">
-  <meta name="description" content="BE ONLY ONE — Your Soul. Your Story. Your Identity.">
-  <title>BE ONLY ONE — Enter Your World</title>
-  <link rel="icon" href="assets/images/favicon.svg" type="image/svg+xml">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#11111b">
+  <meta name="description" content="BE ONLY ONE — a place to share feelings, memories, music, and meaningful moments.">
+  <meta name="robots" content="index, follow">
+  <title>BE ONLY ONE — Your Feelings. Your Story.</title>
   <link rel="stylesheet" href="assets/css/style.css">
-  <script type="module" src="assets/js/app.js"></script>
+  <link rel="icon" href="assets/images/favicon.png" type="image/png">
 </head>
 
 <body>
   <a class="skip-link" href="#main-content">Skip to content</a>
 
-  <div class="cinematic-background" aria-hidden="true">
-    <div class="nebula nebula-one"></div>
-    <div class="nebula nebula-two"></div>
-    <div class="star-field" id="star-field"></div>
-    <div class="ambient-orb orb-one"></div>
-    <div class="ambient-orb orb-two"></div>
-  </div>
-
   <header class="site-header">
-    <a class="brand" href="#home" aria-label="BE ONLY ONE home">
-      <span class="brand-symbol" aria-hidden="true">✦</span>
-      <span class="brand-copy">
-        <strong>BE ONLY ONE</strong>
-        <small>YOUR SOUL. YOUR STORY. YOUR IDENTITY.</small>
-      </span>
-    </a>
+    <nav class="navbar" aria-label="Main navigation">
+      <a class="brand" href="#home" aria-label="BE ONLY ONE home">
+        <span class="brand-mark" aria-hidden="true">♡</span>
+        <span>BE ONLY ONE</span>
+      </a>
 
-    <nav class="main-nav" aria-label="Main navigation">
-      <a href="#home">Home</a>
-      <a href="#stories">Stories</a>
-      <a href="#feelings">Feelings</a>
-      <a href="#music">Music</a>
-      <a href="#identity">Identity</a>
+      <button
+        class="menu-toggle"
+        id="menu-toggle"
+        type="button"
+        aria-label="Toggle navigation"
+        aria-expanded="false"
+        aria-controls="primary-navigation"
+      >
+        <span></span><span></span><span></span>
+      </button>
+
+      <div class="nav-links" id="primary-navigation">
+        <a href="#home">Home</a>
+        <a href="#stories">Discover</a>
+        <button type="button" id="view-connections" class="nav-action">
+          Connections
+        </button>
+        <button type="button" id="open-profile" class="nav-action">
+          My Profile
+        </button>
+        <button type="button" id="get-started" class="btn btn-primary">
+          Get Started
+        </button>
+      </div>
     </nav>
-
-    <div class="header-actions">
-      <button class="button button-quiet" id="login-button" type="button">
-        Log in
-      </button>
-      <button class="button button-gold" id="signup-button" type="button">
-        Enter your world
-      </button>
-      <button class="icon-button" id="menu-toggle" type="button"
-        aria-label="Open menu" aria-expanded="false" aria-controls="account-menu">
-        ☰
-      </button>
-    </div>
-
-    <div class="account-menu" id="account-menu" hidden>
-      <button type="button" data-action="open-profile">My identity</button>
-      <button type="button" data-action="view-connections">My connections</button>
-      <button type="button" data-action="open-settings">Settings & privacy</button>
-      <button type="button" data-action="logout">Log out</button>
-    </div>
   </header>
 
   <main id="main-content">
-    <section class="hero section-shell" id="home">
-      <div class="hero-copy">
-        <p class="eyebrow"><span class="eyebrow-line"></span> A UNIVERSE OF YOUR OWN</p>
-        <h1>Every soul has a story.<br>
-          <span class="gradient-text">This world is yours.</span>
-        </h1>
+    <section class="hero" id="home">
+      <div class="hero-content">
+        <p class="eyebrow">A SPACE THAT FEELS LIKE YOU</p>
+        <h1>Your feelings.<br><span>Your story.</span></h1>
         <p class="hero-description">
-          Feel deeply. Express freely. Discover your people.
-          Build an identity that belongs only to you.
+          A place to share what matters, preserve the moments you never want
+          to lose, and discover stories from people around the world.
         </p>
 
         <div class="hero-actions">
-          <button class="button button-gold button-large"
-            type="button" data-action="get-started">
-            Enter your kingdom <span aria-hidden="true">↗</span>
+          <button type="button" id="create-feeling" class="btn btn-primary">
+            Share a Feeling
           </button>
-          <a class="button button-glass button-large" href="#discover">
-            Explore the universe
-          </a>
+          <button type="button" id="open-feature" class="btn btn-secondary">
+            Explore the Experience
+          </button>
         </div>
 
-        <div class="hero-promise">
-          <span class="promise-icon" aria-hidden="true">✧</span>
-          <p>Your story matters. Your identity is yours. You belong here.</p>
-        </div>
+        <p class="hero-note">
+          Your story is yours to share. Choose who can see it.
+        </p>
       </div>
 
-      <div class="hero-world" id="hero-world" aria-label="Cinematic 3D world">
-        <div class="world-ring ring-outer"></div>
-        <div class="world-ring ring-middle"></div>
-        <div class="world-ring ring-inner"></div>
-        <div class="world-core">
-          <span class="world-star" aria-hidden="true">✦</span>
-          <span class="world-core-title">YOUR<br>WORLD</span>
-          <span class="world-core-caption">YOUR STORY BEGINS HERE</span>
+      <div class="hero-visual" aria-hidden="true">
+        <div class="hero-orb hero-orb-one"></div>
+        <div class="hero-orb hero-orb-two"></div>
+        <div class="hero-card">
+          <span class="hero-card-icon">♡</span>
+          <p>Some feelings deserve a place to stay.</p>
+          <span class="hero-card-caption">YOUR MOMENT. YOUR WAY.</span>
         </div>
-        <div class="floating-gem gem-one" aria-hidden="true">✧</div>
-        <div class="floating-gem gem-two" aria-hidden="true">✦</div>
-        <div class="floating-gem gem-three" aria-hidden="true">◇</div>
-        <div class="world-label label-top">FEEL</div>
-        <div class="world-label label-right">CONNECT</div>
-        <div class="world-label label-bottom">EXPRESS</div>
-        <div class="world-label label-left">CREATE</div>
       </div>
     </section>
 
-    <section class="welcome-banner section-shell" aria-labelledby="welcome-title">
-      <div class="welcome-emblem" aria-hidden="true">♛</div>
-      <div>
-        <p class="eyebrow">YOUR JOURNEY. YOUR LEGACY.</p>
-        <h2 id="welcome-title">You were never meant to be a copy.</h2>
-        <p>Wear your identity like a crown. Let your story be your legacy.</p>
-      </div>
-    </section>
-
-    <section class="section-shell section-block" id="discover">
+    <section class="feature-section" id="features">
       <div class="section-heading">
-        <div>
-          <p class="eyebrow">EXPLORE YOUR UNIVERSE</p>
-          <h2>A world of <span class="gradient-text">possibilities.</span></h2>
-        </div>
-        <p>Every part of you deserves a place to shine.</p>
+        <p class="eyebrow">MAKE SPACE FOR WHAT MATTERS</p>
+        <h2>Every moment has a story.</h2>
+        <p>Share today, remember tomorrow, and express yourself your way.</p>
       </div>
 
       <div class="feature-grid">
-        <article class="feature-card feature-feelings" id="feelings">
-          <div class="feature-art" aria-hidden="true">♡</div>
-          <p class="feature-number">01 / FEEL</p>
-          <h3>Your feelings, your truth.</h3>
-          <p>Share moods, thoughts, stories, photos and short videos.</p>
-          <button class="text-button" type="button"
-            data-action="open-feature" data-feature="feelings">
-            Explore feelings <span aria-hidden="true">→</span>
+        <article class="feature-card">
+          <div class="feature-icon" aria-hidden="true">♡</div>
+          <h3>Feelings</h3>
+          <p>Put your thoughts and emotions into words.</p>
+          <button type="button" id="feature-feeling" class="text-action">
+            Share a feeling →
           </button>
         </article>
 
-        <article class="feature-card feature-music" id="music">
-          <div class="feature-art" aria-hidden="true">♫</div>
-          <p class="feature-number">02 / CREATE</p>
-          <h3>Let your soul have a soundtrack.</h3>
-          <p>Discover music, upload audio and save your favourites.</p>
-          <button class="text-button" type="button"
-            data-action="open-feature" data-feature="music">
-            Explore music <span aria-hidden="true">→</span>
+        <article class="feature-card">
+          <div class="feature-icon" aria-hidden="true">✦</div>
+          <h3>Memories</h3>
+          <p>Keep meaningful moments, photos, and videos together.</p>
+          <button type="button" id="create-memory" class="text-action">
+            Save a memory →
           </button>
         </article>
 
-        <article class="feature-card feature-identity" id="identity">
-          <div class="feature-art" aria-hidden="true">♛</div>
-          <p class="feature-number">03 / EXPRESS</p>
-          <h3>Your identity. Your crown.</h3>
-          <p>Create a profile that reflects your interests and story.</p>
-          <button class="text-button" type="button"
-            data-action="open-profile">
-            Create your identity <span aria-hidden="true">→</span>
-          </button>
-        </article>
-
-        <article class="feature-card feature-connect" id="connections">
-          <div class="feature-art" aria-hidden="true">✧</div>
-          <p class="feature-number">04 / CONNECT</p>
-          <h3>Find people who understand you.</h3>
-          <p>Connect with people and discover stories shared with you.</p>
-          <button class="text-button" type="button"
-            data-action="view-connections">
-            Discover connections <span aria-hidden="true">→</span>
+        <article class="feature-card">
+          <div class="feature-icon" aria-hidden="true">♫</div>
+          <h3>Music & Audio</h3>
+          <p>Share sounds and audio that express how you feel.</p>
+          <button type="button" id="create-music" class="text-action">
+            Share audio →
           </button>
         </article>
       </div>
     </section>
 
-    <section class="section-shell section-block" id="stories">
+    <section class="stories-section" id="stories">
       <div class="section-heading">
-        <div>
-          <p class="eyebrow">STORIES FROM YOUR WORLD</p>
-          <h2>Stories worth <span class="gradient-text">feeling.</span></h2>
+        <p class="eyebrow">STORIES FROM THE HEART</p>
+        <h2>Discover moments.</h2>
+        <p>Explore shared stories while respecting each person's privacy.</p>
+      </div>
+
+      <div class="story-toolbar">
+        <div class="story-filters" role="group" aria-label="Filter stories">
+          <button type="button" class="filter-btn active" data-filter="all">
+            All
+          </button>
+          <button type="button" class="filter-btn" data-filter="feeling">
+            Feelings
+          </button>
+          <button type="button" class="filter-btn" data-filter="memory">
+            Memories
+          </button>
+          <button type="button" class="filter-btn" data-filter="music">
+            Music
+          </button>
         </div>
-        <button class="button button-glass" type="button"
-          data-action="view-connections">
-          My connections
+
+        <button type="button" id="create-story" class="btn btn-primary">
+          + Create Story
         </button>
       </div>
 
-      <div class="story-tabs" role="group" aria-label="Story filter">
-        <button class="story-tab is-active" type="button"
-          data-story-filter="public" aria-pressed="true">Discover</button>
-        <button class="story-tab" type="button"
-          data-story-filter="connections" aria-pressed="false">My connections</button>
-        <button class="story-tab" type="button"
-          data-story-filter="mine" aria-pressed="false">My stories</button>
-      </div>
-
-      <div class="stories-feed" id="stories-feed" aria-live="polite">
-        <div class="empty-state">
-          <span class="empty-state-icon" aria-hidden="true">✧</span>
-          <h3>Your story universe awaits.</h3>
-          <p>Sign in to discover stories and see what your connections share.</p>
-          <button class="button button-gold" type="button"
-            data-action="get-started">Join your world</button>
+      <div id="stories-container" class="stories-grid" aria-live="polite">
+        <div class="empty-state" id="stories-loading">
+          <p>Stories will appear here when available.</p>
+          <p>Sign in to share your own moments.</p>
         </div>
       </div>
 
-      <div class="feed-more">
-        <button class="button button-glass" type="button"
-          data-action="load-more-stories" hidden>
-          Load more stories
+      <div class="load-more-wrap">
+        <button type="button" id="load-more-stories" class="btn btn-secondary">
+          Load More Stories
         </button>
       </div>
     </section>
 
-    <section class="section-shell section-block creation-section">
-      <div class="section-heading">
-        <div>
-          <p class="eyebrow">MAKE THIS WORLD YOURS</p>
-          <h2>Your story deserves <span class="gradient-text">a voice.</span></h2>
-        </div>
-      </div>
-
-      <div class="creation-grid">
-        <article class="creation-card">
-          <span class="creation-icon" aria-hidden="true">✎</span>
-          <h3>Share a feeling</h3>
-          <p>Put your thoughts into words and choose who can see them.</p>
-          <button class="button button-glass" type="button"
-            data-action="create-feeling">Write your story</button>
-        </article>
-
-        <article class="creation-card">
-          <span class="creation-icon" aria-hidden="true">◈</span>
-          <h3>Share a memory</h3>
-          <p>Keep a moment alive with a photo or a short video.</p>
-          <button class="button button-glass" type="button"
-            data-action="create-memory">Share a memory</button>
-        </article>
-
-        <article class="creation-card">
-          <span class="creation-icon" aria-hidden="true">♫</span>
-          <h3>Share your music</h3>
-          <p>Share audio that captures a feeling or a moment.</p>
-          <button class="button button-glass" type="button"
-            data-action="create-music">Add your soundtrack</button>
-        </article>
-      </div>
-    </section>
-
-    <section class="section-shell section-block identity-banner">
-      <div class="identity-banner-copy">
-        <p class="eyebrow">A CROWN OF YOUR OWN</p>
-        <h2>Be the hero of <span class="gradient-text">your own story.</span></h2>
+    <section class="community-section" id="community">
+      <div class="community-content">
+        <p class="eyebrow">CONNECTION WITHOUT PRESSURE</p>
+        <h2>Real moments. Meaningful connections.</h2>
         <p>
-          Your character matters more than a crown.
-          Your voice matters more than applause.
-          Your world begins with being yourself.
+          Connect with people you choose. Your private content should remain
+          private, and you should always have control over your audience.
         </p>
-        <button class="button button-gold button-large"
-          type="button" data-action="get-started">
-          Create your identity
+        <button type="button" id="community-connections" class="btn btn-primary">
+          View Connections
         </button>
       </div>
-      <div class="identity-crown" aria-hidden="true">♛</div>
     </section>
   </main>
 
   <footer class="site-footer">
     <a class="brand footer-brand" href="#home">
-      <span class="brand-symbol" aria-hidden="true">✦</span>
-      <span class="brand-copy">
-        <strong>BE ONLY ONE</strong>
-        <small>YOUR SOUL. YOUR STORY. YOUR IDENTITY.</small>
-      </span>
+      <span class="brand-mark" aria-hidden="true">♡</span>
+      <span>BE ONLY ONE</span>
     </a>
-    <p>Every soul has a story. Make yours unforgettable.</p>
+
+    <p>Every feeling matters. Every memory has a place.</p>
+
     <div class="footer-links">
-      <a href="#privacy">Privacy</a>
-      <a href="#terms">Terms</a>
-      <a href="#safety">Safety</a>
+      <button type="button" id="open-settings" class="footer-action">
+        Settings
+      </button>
+      <a href="privacy.html">Privacy Policy</a>
+      <a href="terms.html">Terms of Service</a>
     </div>
-    <p class="footer-copyright">© <span id="current-year">2026</span> BE ONLY ONE</p>
+
+    <p class="copyright">
+      © <span id="current-year">2026</span> BE ONLY ONE.
+    </p>
   </footer>
 
   <!-- Authentication dialog -->
-  <dialog class="app-dialog auth-dialog" id="auth-dialog"
-    aria-labelledby="auth-title">
-    <div class="dialog-inner">
-      <button class="dialog-close" type="button"
-        data-action="close-dialog" aria-label="Close">×</button>
-      <p class="eyebrow">YOUR WORLD IS WAITING</p>
-      <h2 id="auth-title">Enter your world</h2>
-      <p id="auth-description">Sign in or create your BE ONLY ONE account.</p>
+  <dialog id="auth-dialog" class="app-dialog" aria-labelledby="auth-title">
+    <div class="dialog-content">
+      <button type="button" class="dialog-close" data-close-dialog
+        aria-label="Close dialog">×</button>
+
+      <p class="eyebrow">WELCOME TO BE ONLY ONE</p>
+      <h2 id="auth-title">Your space starts here.</h2>
+      <p id="auth-description">Sign in or create your account.</p>
+
+      <div class="auth-tabs" role="group" aria-label="Authentication mode">
+        <button type="button" id="login-tab" class="auth-tab active">
+          Sign In
+        </button>
+        <button type="button" id="signup-tab" class="auth-tab">
+          Create Account
+        </button>
+      </div>
 
       <form id="auth-form">
-        <label for="auth-display-name" id="display-name-label" hidden>
-          Display name
-        </label>
-        <input id="auth-display-name" name="displayName"
-          type="text" maxlength="60" autocomplete="nickname"
-          placeholder="Your name" hidden>
+        <div class="form-field" id="name-field">
+          <label for="auth-name">Display name</label>
+          <input id="auth-name" name="displayName" type="text"
+            autocomplete="name" maxlength="60"
+            placeholder="How should we call you?">
+        </div>
 
-        <label for="auth-gender" id="gender-label" hidden>Choose your experience</label>
-        <select id="auth-gender" name="gender" hidden>
-          <option value="">Prefer not to say</option>
-          <option value="male">King experience</option>
-          <option value="female">Queen experience</option>
-          <option value="other">My own world</option>
-        </select>
+        <div class="form-field">
+          <label for="auth-email">Email address</label>
+          <input id="auth-email" name="email" type="email"
+            autocomplete="email" required maxlength="254"
+            placeholder="you@example.com">
+        </div>
 
-        <label for="auth-email">Email address</label>
-        <input id="auth-email" name="email" type="email"
-          autocomplete="email" placeholder="you@example.com" required>
+        <div class="form-field">
+          <label for="auth-password">Password</label>
+          <input id="auth-password" name="password" type="password"
+            autocomplete="current-password" required minlength="6"
+            maxlength="128" placeholder="Enter your password">
+        </div>
 
-        <label for="auth-password">Password</label>
-        <input id="auth-password" name="password" type="password"
-          minlength="6" autocomplete="current-password"
-          placeholder="At least 6 characters" required>
+        <p id="auth-error" class="form-message error-message"
+          role="alert" aria-live="polite"></p>
+        <p id="auth-success" class="form-message success-message"
+          role="status" aria-live="polite"></p>
 
-        <button class="button button-gold button-full"
-          id="auth-submit" type="submit">Continue</button>
+        <button type="submit" id="auth-submit" class="btn btn-primary btn-full">
+          Sign In
+        </button>
+
+        <button type="button" id="forgot-password" class="text-action">
+          Forgot password?
+        </button>
       </form>
 
-      <button class="text-button auth-switch" type="button"
-        id="auth-mode-toggle">Create an account</button>
-
-      <button class="text-button" type="button"
-        data-action="forgot-password">Forgot password?</button>
-
-      <p class="form-message" id="auth-message" role="status"
-        aria-live="polite" hidden></p>
+      <p class="dialog-legal">
+        By creating an account, you agree to our
+        <a href="terms.html">Terms</a> and
+        <a href="privacy.html">Privacy Policy</a>.
+      </p>
     </div>
   </dialog>
 
   <!-- Profile dialog -->
-  <dialog class="app-dialog" id="profile-dialog"
-    aria-labelledby="profile-dialog-title">
-    <div class="dialog-inner">
-      <button class="dialog-close" type="button"
-        data-action="close-dialog" aria-label="Close">×</button>
-      <p class="eyebrow">CREATE YOUR IDENTITY</p>
-      <h2 id="profile-dialog-title">Your world. Your identity.</h2>
-      <div id="profile-content">
-        <p>Sign in to create and manage your profile.</p>
+  <dialog id="profile-dialog" class="app-dialog" aria-labelledby="profile-title">
+    <div class="dialog-content">
+      <button type="button" class="dialog-close" data-close-dialog
+        aria-label="Close dialog">×</button>
+
+      <p class="eyebrow">YOUR SPACE</p>
+      <h2 id="profile-title">Your Profile</h2>
+
+      <div id="profile-summary" class="profile-summary">
+        <p>Sign in to view your profile.</p>
       </div>
+
+      <form id="profile-form">
+        <div class="form-field">
+          <label for="profile-name">Display name</label>
+          <input id="profile-name" name="displayName" type="text"
+            maxlength="60" autocomplete="nickname" required>
+        </div>
+
+        <div class="form-field">
+          <label for="profile-gender">Gender (optional)</label>
+          <select id="profile-gender" name="gender">
+            <option value="">Prefer not to say</option>
+            <option value="female">Female</option>
+            <option value="male">Male</option>
+            <option value="nonbinary">Non-binary</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+
+        <div class="form-field">
+          <label for="profile-bio">About you</label>
+          <textarea id="profile-bio" name="bio" maxlength="300"
+            rows="3" placeholder="Tell people a little about yourself"></textarea>
+        </div>
+
+        <div class="form-field">
+          <label for="profile-interests">Interests</label>
+          <input id="profile-interests" name="interests" type="text"
+            maxlength="200" placeholder="Music, memories, photography...">
+        </div>
+
+        <div class="form-field">
+          <label for="profile-photo">Profile photo (optional)</label>
+          <input id="profile-photo" name="photo" type="file"
+            accept="image/jpeg,image/png,image/webp">
+        </div>
+
+        <p id="profile-error" class="form-message error-message"
+          role="alert"></p>
+
+        <button type="submit" id="save-profile" class="btn btn-primary btn-full">
+          Save Profile
+        </button>
+
+        <button type="button" id="sign-out" class="btn btn-secondary btn-full">
+          Sign Out
+        </button>
+      </form>
     </div>
   </dialog>
 
-  <!-- Story creation dialog -->
-  <dialog class="app-dialog" id="story-dialog"
-    aria-labelledby="story-dialog-title">
-    <div class="dialog-inner">
-      <button class="dialog-close" type="button"
-        data-action="close-dialog" aria-label="Close">×</button>
+  <!-- Create story dialog -->
+  <dialog id="story-dialog" class="app-dialog" aria-labelledby="story-title">
+    <div class="dialog-content">
+      <button type="button" class="dialog-close" data-close-dialog
+        aria-label="Close dialog">×</button>
+
       <p class="eyebrow">EXPRESS YOURSELF</p>
-      <h2 id="story-dialog-title">Share your story</h2>
+      <h2 id="story-title">Create a Story</h2>
+      <p>Choose what to share and who can see it.</p>
 
       <form id="story-form">
-        <label for="story-kind">What are you sharing?</label>
-        <select id="story-kind" name="kind">
-          <option value="feeling">Feeling or thought</option>
-          <option value="memory">Photo or video memory</option>
-          <option value="music">Music</option>
-        </select>
+        <div class="form-field">
+          <label for="story-kind">Story type</label>
+          <select id="story-kind" name="kind" required>
+            <option value="feeling">Feeling</option>
+            <option value="memory">Memory</option>
+            <option value="music">Music / Audio</option>
+          </select>
+        </div>
 
-        <label for="story-title">Title (optional)</label>
-        <input id="story-title" name="title"
-          maxlength="120" placeholder="Give your story a title">
+        <div class="form-field">
+          <label for="story-title-input">Title</label>
+          <input id="story-title-input" name="title" type="text"
+            maxlength="100" placeholder="Give your moment a title">
+        </div>
 
-        <label for="story-mood">Your mood</label>
-        <input id="story-mood" name="mood"
-          maxlength="40" placeholder="Hopeful, peaceful, excited...">
+        <div class="form-field">
+          <label for="story-mood">Mood (optional)</label>
+          <select id="story-mood" name="mood">
+            <option value="">Choose a mood</option>
+            <option value="happy">Happy</option>
+            <option value="grateful">Grateful</option>
+            <option value="hopeful">Hopeful</option>
+            <option value="sad">Sad</option>
+            <option value="thoughtful">Thoughtful</option>
+            <option value="peaceful">Peaceful</option>
+            <option value="nostalgic">Nostalgic</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
 
-        <label for="story-text">Your story</label>
-        <textarea id="story-text" name="text"
-          rows="5" maxlength="5000"
-          placeholder="Write what you want to express..."></textarea>
+        <div class="form-field">
+          <label for="story-text">Your story</label>
+          <textarea id="story-text" name="text" rows="5" maxlength="5000"
+            placeholder="Write what is on your mind..."></textarea>
+        </div>
 
-        <label for="story-media">Attach photo, video or audio</label>
-        <input id="story-media" name="media" type="file"
-          accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime,audio/mpeg,audio/mp4,audio/aac,audio/ogg,audio/wav">
+        <div class="form-field">
+          <label for="story-media">Add a photo, video, or audio file (optional)</label>
+          <input id="story-media" name="media" type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,audio/mpeg,audio/mp4,audio/ogg,audio/wav,audio/webm">
+          <p class="field-help">
+            Images up to 10 MB, videos up to 50 MB and 30 seconds,
+            audio up to 20 MB. Supported formats are checked during upload.
+          </p>
+        </div>
 
-        <label for="story-visibility">Who can see this?</label>
-        <select id="story-visibility" name="visibility">
-          <option value="connections">My connections</option>
-          <option value="public">Public</option>
-          <option value="private">Only me</option>
-        </select>
+        <div class="form-field">
+          <label for="story-visibility">Who can see this?</label>
+          <select id="story-visibility" name="visibility" required>
+            <option value="public">Public</option>
+            <option value="connections">My connections</option>
+            <option value="private">Only me</option>
+          </select>
+        </div>
 
-        <p class="form-hint">
-          Videos must be 30 seconds or shorter. Respect other people's privacy
-          and only upload content you have the right to share.
-        </p>
+        <div id="upload-progress" class="upload-progress" hidden>
+          <p id="upload-progress-text" role="status">Preparing upload...</p>
+          <progress id="upload-progress-bar" max="100" value="0">
+            0%
+          </progress>
+        </div>
 
-        <button class="button button-gold button-full"
-          id="publish-story-button" type="submit">Share story</button>
-        <p class="form-message" id="story-message" role="status"
-          aria-live="polite" hidden></p>
+        <p id="story-error" class="form-message error-message"
+          role="alert" aria-live="polite"></p>
+        <p id="story-success" class="form-message success-message"
+          role="status" aria-live="polite"></p>
+
+        <button type="submit" id="publish-story" class="btn btn-primary btn-full">
+          Share Story
+        </button>
       </form>
     </div>
   </dialog>
 
   <!-- Feature information dialog -->
-  <dialog class="app-dialog" id="feature-dialog"
-    aria-labelledby="feature-dialog-title">
-    <div class="dialog-inner">
-      <button class="dialog-close" type="button"
-        data-action="close-dialog" aria-label="Close">×</button>
-      <p class="eyebrow" id="feature-dialog-eyebrow">YOUR UNIVERSE</p>
-      <h2 id="feature-dialog-title">Explore</h2>
-      <p id="feature-dialog-description"></p>
-      <div id="feature-dialog-content"></div>
+  <dialog id="feature-dialog" class="app-dialog" aria-labelledby="feature-title">
+    <div class="dialog-content">
+      <button type="button" class="dialog-close" data-close-dialog
+        aria-label="Close dialog">×</button>
+      <p class="eyebrow">EXPLORE</p>
+      <h2 id="feature-title">Your moments matter.</h2>
+      <p id="feature-description">
+        Share feelings, preserve memories, and express yourself through audio.
+        Choose your audience before sharing.
+      </p>
+      <button type="button" id="feature-start-story" class="btn btn-primary btn-full">
+        Create a Story
+      </button>
     </div>
   </dialog>
 
-  <!-- Connection dialog -->
-  <dialog class="app-dialog" id="connections-dialog"
+  <!-- Connections dialog -->
+  <dialog id="connections-dialog" class="app-dialog"
     aria-labelledby="connections-title">
-    <div class="dialog-inner">
-      <button class="dialog-close" type="button"
-        data-action="close-dialog" aria-label="Close">×</button>
-      <p class="eyebrow">FIND YOUR PEOPLE</p>
-      <h2 id="connections-title">Your connections</h2>
-      <div class="connection-tabs">
-        <button class="story-tab is-active" type="button"
-          data-connection-tab="connections">Connected</button>
-        <button class="story-tab" type="button"
-          data-connection-tab="requests">Requests</button>
-        <button class="story-tab" type="button"
-          data-connection-tab="discover">Discover people</button>
+    <div class="dialog-content">
+      <button type="button" class="dialog-close" data-close-dialog
+        aria-label="Close dialog">×</button>
+
+      <p class="eyebrow">YOUR PEOPLE</p>
+      <h2 id="connections-title">Connections</h2>
+
+      <div class="connection-tabs" role="group" aria-label="Connection sections">
+        <button type="button" id="connections-tab" class="connection-tab active">
+          My Connections
+        </button>
+        <button type="button" id="requests-tab" class="connection-tab">
+          Requests
+        </button>
+        <button type="button" id="discover-tab" class="connection-tab">
+          Discover
+        </button>
       </div>
-      <div id="connections-content" aria-live="polite">
-        <p>Sign in to discover people and manage connection requests.</p>
+
+      <div id="connections-container" class="connections-list" aria-live="polite">
+        <p>Sign in to manage your connections.</p>
       </div>
+
+      <p id="connections-message" class="form-message"
+        role="status" aria-live="polite"></p>
     </div>
   </dialog>
 
   <!-- Settings dialog -->
-  <dialog class="app-dialog" id="settings-dialog"
-    aria-labelledby="settings-title">
-    <div class="dialog-inner">
-      <button class="dialog-close" type="button"
-        data-action="close-dialog" aria-label="Close">×</button>
-      <p class="eyebrow">YOUR WORLD, YOUR CHOICE</p>
-      <h2 id="settings-title">Settings & privacy</h2>
-      <div id="settings-content">
-        <p>Sign in to manage your account and privacy settings.</p>
+  <dialog id="settings-dialog" class="app-dialog" aria-labelledby="settings-title">
+    <div class="dialog-content">
+      <button type="button" class="dialog-close" data-close-dialog
+        aria-label="Close dialog">×</button>
+
+      <p class="eyebrow">YOUR CONTROL</p>
+      <h2 id="settings-title">Settings & Safety</h2>
+
+      <div class="settings-list">
+        <section>
+          <h3>Privacy</h3>
+          <p>
+            Choose the visibility of each story when you publish it.
+            Account and story access must also be enforced by Firestore rules.
+          </p>
+        </section>
+
+        <section>
+          <h3>Safety</h3>
+          <p>
+            You should be able to report content and block users. These actions
+            must be connected to secure backend logic before being relied on.
+          </p>
+        </section>
+
+        <section>
+          <h3>Your account</h3>
+          <button type="button" id="settings-profile" class="btn btn-secondary">
+            Edit Profile
+          </button>
+          <button type="button" id="settings-signout" class="btn btn-secondary">
+            Sign Out
+          </button>
+        </section>
       </div>
     </div>
   </dialog>
 
-  <div class="toast-region" id="toast-region"
-    role="status" aria-live="polite"></div>
+  <!-- Shared dialog for story actions -->
+  <dialog id="action-dialog" class="app-dialog" aria-labelledby="action-title">
+    <div class="dialog-content">
+      <button type="button" class="dialog-close" data-close-dialog
+        aria-label="Close dialog">×</button>
+      <h2 id="action-title">Story Action</h2>
+      <p id="action-description"></p>
+
+      <form id="action-form">
+        <div class="form-field" id="action-reason-field">
+          <label for="action-reason">Reason (optional)</label>
+          <textarea id="action-reason" name="reason" rows="3"
+            maxlength="1000" placeholder="Tell us more"></textarea>
+        </div>
+        <p id="action-error" class="form-message error-message"
+          role="alert"></p>
+        <button type="submit" id="action-confirm" class="btn btn-primary btn-full">
+          Confirm
+        </button>
+      </form>
+    </div>
+  </dialog>
+
+  <div id="app-notice" class="app-notice" role="status"
+    aria-live="polite" hidden></div>
+
+  <script>
+    document.getElementById("current-year").textContent =
+      String(new Date().getFullYear());
+
+    document.querySelectorAll("[data-close-dialog]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const dialog = button.closest("dialog");
+        if (dialog && dialog.open) dialog.close();
+      });
+    });
+
+    document.querySelectorAll("dialog").forEach((dialog) => {
+      dialog.addEventListener("click", (event) => {
+        if (event.target === dialog) dialog.close();
+      });
+    });
+
+    const menuToggle = document.getElementById("menu-toggle");
+    const navigation = document.getElementById("primary-navigation");
+
+    if (menuToggle && navigation) {
+      menuToggle.addEventListener("click", () => {
+        const isOpen = navigation.classList.toggle("menu-open");
+        menuToggle.setAttribute("aria-expanded", String(isOpen));
+      });
+
+      navigation.querySelectorAll("a, button").forEach((item) => {
+        item.addEventListener("click", () => {
+          navigation.classList.remove("menu-open");
+          menuToggle.setAttribute("aria-expanded", "false");
+        });
+      });
+    }
+  </script>
+
+  <script type="module" src="assets/js/app.js"></script>
 </body>
 </html>
