@@ -1,4 +1,3 @@
-
 import {
   auth,
   db,
@@ -24,8 +23,8 @@ import {
 
 import { uploadMedia } from "./cloudinary-config.js";
 
-const $ = (selector, root = document) => root.querySelector(selector);
-const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 
 const state = {
   user: null,
@@ -33,290 +32,200 @@ const state = {
   authMode: "login",
   storyFilter: "public",
   connectionTab: "discover",
-  feature: "",
   stories: [],
   connections: [],
-  connectionRequests: [],
+  requests: [],
   busy: false
 };
 
-const KING_QUOTES = [
-  "A king is not defined by his crown, but by the world he builds.",
-  "Your story is your kingdom. Write it with courage.",
-  "Stand tall. Your identity belongs to you.",
-  "A true king creates his own path."
-];
+const quotes = {
+  male: [
+    "A king builds his kingdom through courage, not a crown.",
+    "Your story is your kingdom. Write it boldly.",
+    "Stand tall. Your identity belongs to you."
+  ],
+  female: [
+    "A queen knows her worth, with or without a crown.",
+    "Your story is your power. Let your light shine.",
+    "Rule your world with courage and kindness."
+  ],
+  other: [
+    "You don't need a crown to create your own world.",
+    "Your soul. Your story. Your identity.",
+    "Be original. Your journey is yours to define."
+  ]
+};
 
-const QUEEN_QUOTES = [
-  "A queen knows her worth even without a crown.",
-  "Your story is your power. Let the world see your light.",
-  "Rule your world with courage, kindness and confidence.",
-  "Your identity is your greatest treasure."
-];
+const random = a => a[Math.floor(Math.random() * a.length)];
 
-const LEGEND_QUOTES = [
-  "You don't need a crown to create your own world.",
-  "Your soul. Your story. Your identity.",
-  "Be the original. The world has enough copies.",
-  "Your journey is yours to define."
-];
-
-function randomItem(items) {
-  return items[Math.floor(Math.random() * items.length)];
+function esc(value = "") {
+  return String(value).replace(/[&<>"']/g, c => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;",
+    '"': "&quot;", "'": "&#39;"
+  })[c]);
 }
 
-function escapeHTML(value = "") {
-  return String(value).replace(/[&<>"']/g, char => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#39;"
-  })[char]);
-}
-
-function showToast(message, type = "info") {
+function toast(message, type = "info") {
   const region = $("#toast-region");
   if (!region) {
     console.log(message);
     return;
   }
-
-  const toast = document.createElement("div");
-  toast.className = `toast toast-${type}`;
-  toast.setAttribute("role", "status");
-  toast.textContent = message;
-  region.append(toast);
-
-  window.setTimeout(() => toast.remove(), 4500);
+  const el = document.createElement("div");
+  el.className = `toast toast-${type}`;
+  el.setAttribute("role", "status");
+  el.textContent = message;
+  region.append(el);
+  setTimeout(() => el.remove(), 4000);
 }
 
-function setBusy(button, busy, busyText = "Please wait...") {
+function busy(button, value, text = "Please wait...") {
   if (!button) return;
-
-  if (busy) {
-    button.dataset.originalText = button.textContent;
-    button.textContent = busyText;
+  if (value) {
+    button.dataset.oldText = button.textContent;
+    button.textContent = text;
     button.disabled = true;
-    button.setAttribute("aria-busy", "true");
   } else {
-    button.textContent = button.dataset.originalText || button.textContent;
+    button.textContent = button.dataset.oldText || button.textContent;
     button.disabled = false;
-    button.removeAttribute("aria-busy");
   }
 }
 
 function openDialog(id) {
-  const dialog = document.getElementById(id);
-  if (!dialog) return;
+  const d = document.getElementById(id);
+  if (!d) return;
+  if (d.showModal && !d.open) d.showModal();
+  else d.setAttribute("open", "");
+}
 
-  if (typeof dialog.showModal === "function") {
-    if (!dialog.open) dialog.showModal();
-  } else {
-    dialog.setAttribute("open", "");
+function closeDialog(d) {
+  if (!d) return;
+  if (d.close && d.open) d.close();
+  else d.removeAttribute("open");
+}
+
+function openAuth(mode = "login") {
+  state.authMode = mode;
+  const signup = mode === "signup";
+  const name = $("#auth-display-name");
+  const gender = $("#auth-gender");
+
+  name?.closest(".form-field")?.classList.toggle("is-hidden", !signup);
+  if (name) name.required = signup;
+  gender?.closest(".form-field")?.classList.toggle("is-hidden", !signup);
+
+  const submit = $("#auth-submit");
+  if (submit) submit.textContent = signup ? "Create my world" : "Enter my world";
+
+  const toggle = $("#auth-mode-toggle");
+  if (toggle) toggle.textContent = signup
+    ? "Already have an account? Log in"
+    : "New here? Create your identity";
+
+  const message = $("#auth-message");
+  if (message) message.textContent = "";
+  openDialog("auth-dialog");
+}
+
+function setMessage(message, error = true) {
+  const el = $("#auth-message");
+  if (el) {
+    el.textContent = message;
+    el.dataset.state = error ? "error" : "success";
   }
 }
 
-function closeDialog(dialog) {
-  if (!dialog) return;
-
-  if (typeof dialog.close === "function" && dialog.open) {
-    dialog.close();
-  } else {
-    dialog.removeAttribute("open");
-  }
-}
-
-function showAuthMessage(message, isError = true) {
-  const target = $("#auth-message");
-  if (!target) return;
-
-  target.textContent = message;
-  target.dataset.state = isError ? "error" : "success";
-}
-
-function getExperience(profile = state.profile) {
-  if (profile?.gender === "male") {
-    return {
-      title: "Welcome, King",
-      quote: randomItem(KING_QUOTES),
-      label: "KING"
-    };
-  }
-
-  if (profile?.gender === "female") {
-    return {
-      title: "Welcome, Queen",
-      quote: randomItem(QUEEN_QUOTES),
-      label: "QUEEN"
-    };
-  }
-
-  return {
-    title: "Welcome to Your World",
-    quote: randomItem(LEGEND_QUOTES),
-    label: "YOUR OWN WORLD"
-  };
-}
-
-function applyExperience() {
-  const experience = getExperience();
+function experience() {
+  const gender = state.profile?.gender || "other";
+  const title = gender === "male"
+    ? "Welcome, King"
+    : gender === "female"
+      ? "Welcome, Queen"
+      : "Welcome to Your World";
 
   document.documentElement.dataset.experience =
-    state.profile?.gender === "male" ? "king" :
-    state.profile?.gender === "female" ? "queen" : "legend";
+    gender === "male" ? "king" : gender === "female" ? "queen" : "legend";
 
   const heroTitle = $("#hero-title");
   const heroQuote = $("#hero-quote");
 
-  if (heroTitle && state.user) {
-    heroTitle.textContent = experience.title;
-  }
-
-  if (heroQuote && state.user) {
-    heroQuote.textContent = experience.quote;
+  if (state.user && heroTitle) heroTitle.textContent = title;
+  if (state.user && heroQuote) {
+    heroQuote.textContent = random(quotes[gender] || quotes.other);
   }
 }
 
-function setAuthMode(mode) {
-  state.authMode = mode === "signup" ? "signup" : "login";
+function navigation() {
+  if ($("#login-button")) $("#login-button").hidden = !!state.user;
+  if ($("#signup-button")) $("#signup-button").hidden = !!state.user;
+  if ($("#account-menu")) $("#account-menu").hidden = !state.user;
 
-  const nameField = $("#auth-display-name");
-  const genderField = $("#auth-gender");
-  const submit = $("#auth-submit");
-  const toggle = $("#auth-mode-toggle");
-
-  const signup = state.authMode === "signup";
-
-  if (nameField) {
-    nameField.closest(".form-field")?.classList.toggle("is-hidden", !signup);
-    nameField.required = signup;
-  }
-
-  if (genderField) {
-    genderField.closest(".form-field")?.classList.toggle("is-hidden", !signup);
-  }
-
-  if (submit) {
-    submit.textContent = signup ? "Create my world" : "Enter my world";
-  }
-
-  if (toggle) {
-    toggle.textContent = signup
-      ? "Already have an account? Log in"
-      : "New here? Create your identity";
-  }
-
-  showAuthMessage("");
-}
-
-function updateNavigation() {
-  const loginButton = $("#login-button");
-  const signupButton = $("#signup-button");
-  const accountMenu = $("#account-menu");
-
-  if (loginButton) loginButton.hidden = !!state.user;
-  if (signupButton) signupButton.hidden = !!state.user;
-  if (accountMenu) accountMenu.hidden = !state.user;
-
-  const nameTarget = $("#account-name");
-  if (nameTarget) {
-    nameTarget.textContent =
-      state.profile?.displayName || state.user?.displayName || "My account";
-  }
-
-  const avatar = $("#account-avatar");
-  if (avatar) {
-    avatar.textContent = (
-      state.profile?.displayName ||
-      state.user?.displayName ||
-      "U"
-    ).trim().charAt(0).toUpperCase();
-  }
+  const name = state.profile?.displayName || state.user?.displayName || "My account";
+  if ($("#account-name")) $("#account-name").textContent = name;
+  if ($("#account-avatar")) $("#account-avatar").textContent = name.charAt(0).toUpperCase();
 }
 
 async function loadProfile(user) {
-  const profileRef = doc(db, "users", user.uid);
-  const snapshot = await getDoc(profileRef);
+  const ref = doc(db, "users", user.uid);
+  const snap = await getDoc(ref);
 
-  if (snapshot.exists()) {
-    state.profile = snapshot.data();
+  if (snap.exists()) {
+    state.profile = snap.data();
   } else {
-    state.profile = {
+    const profile = {
       uid: user.uid,
-      displayName: user.displayName || user.email?.split("@")[0] || "New member",
-      email: user.email || "",
+      displayName: user.displayName || "Member",
       gender: "other",
       bio: "",
       interests: [],
-      photoURL: user.photoURL || "",
+      photoURL: "",
       createdAt: serverTimestamp()
     };
-
-    await setDoc(profileRef, state.profile);
+    await setDoc(ref, profile);
+    state.profile = profile;
   }
 
-  updateNavigation();
-  applyExperience();
+  navigation();
+  experience();
 }
 
-async function ensureSignedIn() {
+async function requireLogin() {
   if (state.user) return true;
-
-  showToast("Create an account or log in to continue.");
+  toast("Please log in to continue.");
   openAuth("login");
   return false;
 }
 
-function openAuth(mode = "login") {
-  setAuthMode(mode);
-  openDialog("auth-dialog");
-}
-
-async function handleAuthSubmit(event) {
+async function authSubmit(event) {
   event.preventDefault();
+  if (state.busy) return;
 
-  const form = $("#auth-form");
   const button = $("#auth-submit");
-  if (!form || state.busy) return;
-
   const email = $("#auth-email")?.value.trim();
-  const password = $("#auth-password")?.value;
+  const password = $("#auth-password")?.value || "";
   const displayName = $("#auth-display-name")?.value.trim();
   const gender = $("#auth-gender")?.value || "other";
 
-  if (!email || !password) {
-    showAuthMessage("Enter your email and password.");
-    return;
-  }
-
+  if (!email || !password) return setMessage("Enter your email and password.");
   if (state.authMode === "signup" && !displayName) {
-    showAuthMessage("Choose the name you want people to see.");
-    return;
+    return setMessage("Enter your display name.");
+  }
+  if (state.authMode === "signup" && password.length < 8) {
+    return setMessage("Use a password with at least 8 characters.");
   }
 
   state.busy = true;
-  setBusy(button, true, "Opening your world...");
+  busy(button, true, "Opening your world...");
 
   try {
     if (state.authMode === "signup") {
-      if (password.length < 8) {
-        throw new Error("Use a password with at least 8 characters.");
-      }
-
-      const credential = await createUserWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
-
+      const credential = await createUserWithEmailAndPassword(auth, email, password);
       await updateProfile(credential.user, { displayName });
 
       const profile = {
         uid: credential.user.uid,
         displayName,
-        email,
-        gender,
+        gender: ["male", "female", "other"].includes(gender) ? gender : "other",
         bio: "",
         interests: [],
         photoURL: "",
@@ -326,97 +235,74 @@ async function handleAuthSubmit(event) {
 
       await setDoc(doc(db, "users", credential.user.uid), profile);
       state.profile = profile;
-
       closeDialog($("#auth-dialog"));
-      updateNavigation();
-      applyExperience();
-
-      const experience = getExperience(profile);
-      showToast(`${experience.title}! ${experience.quote}`, "success");
+      navigation();
+      experience();
+      toast(`${gender === "male" ? "Welcome, King" : gender === "female" ? "Welcome, Queen" : "Welcome to your own world"}! ${random(quotes[gender] || quotes.other)}`, "success");
     } else {
       await signInWithEmailAndPassword(auth, email, password);
       closeDialog($("#auth-dialog"));
-      showToast("Welcome back. Your world is waiting.", "success");
+      toast("Welcome back to your world.", "success");
     }
   } catch (error) {
     const messages = {
-      "auth/email-already-in-use": "This email already has an account. Try logging in.",
+      "auth/email-already-in-use": "This email already has an account. Log in instead.",
       "auth/invalid-email": "Enter a valid email address.",
       "auth/invalid-credential": "Email or password is incorrect.",
-      "auth/weak-password": "Choose a stronger password.",
-      "auth/network-request-failed": "Network error. Check your internet connection.",
-      "permission-denied": "Firebase denied this action. Check your Firestore security rules."
+      "auth/weak-password": "Choose a stronger password."
     };
-
-    showAuthMessage(messages[error.code] || error.message || "Could not complete authentication.");
+    setMessage(messages[error.code] || error.message || "Authentication failed.");
   } finally {
     state.busy = false;
-    setBusy(button, false);
+    busy(button, false);
   }
 }
 
-async function handlePasswordReset() {
+async function resetPassword() {
   const email = $("#auth-email")?.value.trim();
-
-  if (!email) {
-    showAuthMessage("Enter your email first, then choose password reset.");
-    return;
-  }
+  if (!email) return setMessage("Enter your email address first.");
 
   try {
     await sendPasswordResetEmail(auth, email);
-    showAuthMessage("If the account exists, a password reset email has been sent.", false);
+    setMessage("If the account exists, a password reset email has been sent.", false);
   } catch (error) {
-    showAuthMessage(error.message || "Could not send the reset email.");
+    setMessage(error.message || "Could not send reset email.");
   }
 }
 
-function renderProfile() {
+function openProfile() {
+  if (!state.user) return openAuth("login");
+
   const target = $("#profile-content");
-  if (!target || !state.user) return;
+  if (!target) return;
 
-  const profile = state.profile || {};
-  const name = profile.displayName || state.user.displayName || "";
-  const interests = Array.isArray(profile.interests)
-    ? profile.interests.join(", ")
-    : "";
-
+  const p = state.profile || {};
   target.innerHTML = `
-    <form id="edit-profile-form" class="profile-edit-form">
-      <label class="form-field">
-        <span>Display name</span>
-        <input name="displayName" maxlength="60" required value="${escapeHTML(name)}">
+    <form id="profile-edit-form">
+      <label class="form-field">Display name
+        <input name="displayName" maxlength="60" required value="${esc(p.displayName || "")}">
       </label>
-
-      <label class="form-field">
-        <span>About me</span>
-        <textarea name="bio" rows="3" maxlength="500">${escapeHTML(profile.bio || "")}</textarea>
+      <label class="form-field">About me
+        <textarea name="bio" maxlength="500" rows="3">${esc(p.bio || "")}</textarea>
       </label>
-
-      <label class="form-field">
-        <span>Interests (separate with commas)</span>
-        <input name="interests" maxlength="300" value="${escapeHTML(interests)}">
+      <label class="form-field">Interests (comma-separated)
+        <input name="interests" maxlength="300" value="${esc((p.interests || []).join(", "))}">
       </label>
-
-      <label class="form-field">
-        <span>Profile photo</span>
+      <label class="form-field">Profile photo
         <input name="photo" type="file" accept="image/jpeg,image/png,image/webp">
       </label>
-
-      <p class="muted">Your selected King, Queen or neutral experience only changes the visual theme and welcome quotes.</p>
-
       <button class="button button-primary" type="submit">Save profile</button>
       <p id="profile-message" role="status"></p>
     </form>
   `;
 
-  $("#edit-profile-form")?.addEventListener("submit", saveProfile);
+  $("#profile-edit-form").addEventListener("submit", saveProfile);
+  openDialog("profile-dialog");
 }
 
 async function saveProfile(event) {
   event.preventDefault();
-
-  if (!await ensureSignedIn()) return;
+  if (!state.user) return;
 
   const form = event.currentTarget;
   const button = $("button[type='submit']", form);
@@ -424,32 +310,21 @@ async function saveProfile(event) {
   const displayName = String(data.get("displayName") || "").trim();
   const bio = String(data.get("bio") || "").trim();
   const interests = String(data.get("interests") || "")
-    .split(",")
-    .map(item => item.trim())
-    .filter(Boolean)
-    .slice(0, 20);
+    .split(",").map(x => x.trim()).filter(Boolean).slice(0, 20);
 
-  if (!displayName) {
-    showToast("Display name is required.");
-    return;
-  }
+  if (!displayName) return toast("Display name is required.");
 
-  setBusy(button, true, "Saving...");
-
+  busy(button, true, "Saving...");
   try {
     let photoURL = state.profile?.photoURL || "";
-
     const photo = data.get("photo");
-    if (photo instanceof File && photo.size > 0) {
-      const uploaded = await uploadMedia(photo);
-      photoURL = uploaded.url;
+
+    if (photo instanceof File && photo.size) {
+      const result = await uploadMedia(photo);
+      photoURL = result.url;
     }
 
-    await updateProfile(state.user, {
-      displayName,
-      photoURL: photoURL || null
-    });
-
+    await updateProfile(state.user, { displayName, photoURL: photoURL || null });
     await updateDoc(doc(db, "users", state.user.uid), {
       displayName,
       bio,
@@ -458,268 +333,31 @@ async function saveProfile(event) {
       updatedAt: serverTimestamp()
     });
 
-    state.profile = {
-      ...state.profile,
-      displayName,
-      bio,
-      interests,
-      photoURL
-    };
-
-    updateNavigation();
-    applyExperience();
-    showToast("Your identity has been updated.", "success");
-    renderProfile();
+    state.profile = { ...state.profile, displayName, bio, interests, photoURL };
+    navigation();
+    experience();
+    toast("Profile saved.", "success");
+    openProfile();
   } catch (error) {
-    showToast(error.message || "Could not save your profile.", "error");
+    toast(error.message || "Could not save profile.", "error");
   } finally {
-    setBusy(button, false);
-  }
-}
-
-function openProfile() {
-  if (!state.user) {
-    openAuth("login");
-    return;
-  }
-
-  renderProfile();
-  openDialog("profile-dialog");
-}
-
-function mediaMarkup(story) {
-  if (!story.mediaURL) return "";
-
-  const url = escapeHTML(story.mediaURL);
-  const type = story.mediaType || "";
-
-  if (type.startsWith("image/")) {
-    return `<img class="story-media" src="${url}" alt="Story image" loading="lazy">`;
-  }
-
-  if (type.startsWith("video/")) {
-    return `<video class="story-media" src="${url}" controls playsinline preload="metadata"></video>`;
-  }
-
-  if (type.startsWith("audio/")) {
-    return `<audio class="story-audio" src="${url}" controls preload="none"></audio>`;
-  }
-
-  return "";
-}
-
-function formatDate(timestamp) {
-  if (!timestamp) return "Just now";
-
-  const date = typeof timestamp.toDate === "function"
-    ? timestamp.toDate()
-    : new Date(timestamp);
-
-  if (Number.isNaN(date.getTime())) return "Recently";
-
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short"
-  }).format(date);
-}
-
-function storyCard(story) {
-  const author = escapeHTML(story.authorName || "A member");
-  const title = escapeHTML(story.title || "A moment from my world");
-  const text = escapeHTML(story.text || "");
-  const mood = escapeHTML(story.mood || "");
-  const visibility = escapeHTML(story.visibility || "public");
-
-  return `
-    <article class="story-card" data-story-id="${escapeHTML(story.id)}">
-      <header class="story-card-header">
-        <div class="story-avatar">${escapeHTML(author.charAt(0).toUpperCase())}</div>
-        <div>
-          <strong>${author}</strong>
-          <p class="muted">${escapeHTML(formatDate(story.createdAt))}</p>
-        </div>
-        <span class="story-visibility">${visibility}</span>
-      </header>
-
-      <h3>${title}</h3>
-      ${mood ? `<p class="story-mood">${mood}</p>` : ""}
-      ${text ? `<p class="story-text">${text}</p>` : ""}
-      ${mediaMarkup(story)}
-
-      <footer class="story-card-footer">
-        <span>${escapeHTML(story.kind || "memory")}</span>
-        ${story.authorId === state.user?.uid
-          ? `<button class="text-button" type="button" data-delete-story="${escapeHTML(story.id)}">Delete</button>`
-          : `<button class="text-button" type="button" data-report-story="${escapeHTML(story.id)}" data-author-id="${escapeHTML(story.authorId || "")}">Report</button>`
-        }
-      </footer>
-    </article>
-  `;
-}
-
-async function getAcceptedConnectionIds() {
-  if (!state.user) return [];
-
-  const [sent, received] = await Promise.all([
-    getDocs(query(
-      collection(db, "connectionRequests"),
-      where("from", "==", state.user.uid),
-      where("status", "==", "accepted"),
-      limit(100)
-    )),
-    getDocs(query(
-      collection(db, "connectionRequests"),
-      where("to", "==", state.user.uid),
-      where("status", "==", "accepted"),
-      limit(100)
-    ))
-  ]);
-
-  return [...new Set([
-    ...sent.docs.map(item => item.data().to),
-    ...received.docs.map(item => item.data().from)
-  ].filter(Boolean))];
-}
-
-async function fetchStories() {
-  if (!state.user) return [];
-
-  const ownQuery = query(
-    collection(db, "stories"),
-    where("authorId", "==", state.user.uid),
-    limit(100)
-  );
-
-  const publicQuery = query(
-    collection(db, "stories"),
-    where("visibility", "==", "public"),
-    limit(100)
-  );
-
-  const [ownSnapshot, publicSnapshot] = await Promise.all([
-    getDocs(ownQuery),
-    getDocs(publicQuery)
-  ]);
-
-  const storyMap = new Map();
-
-  for (const item of [...ownSnapshot.docs, ...publicSnapshot.docs]) {
-    storyMap.set(item.id, { id: item.id, ...item.data() });
-  }
-
-  if (state.storyFilter === "connections") {
-    const connectionIds = await getAcceptedConnectionIds();
-
-    for (let index = 0; index < connectionIds.length; index += 10) {
-      const batch = connectionIds.slice(index, index + 10);
-
-      if (!batch.length) continue;
-
-      const connectionStories = await getDocs(query(
-        collection(db, "stories"),
-        where("authorId", "in", batch),
-        where("visibility", "==", "connections"),
-        limit(100)
-      ));
-
-      for (const item of connectionStories.docs) {
-        storyMap.set(item.id, { id: item.id, ...item.data() });
-      }
-    }
-  }
-
-  let stories = [...storyMap.values()];
-
-  if (state.storyFilter === "mine") {
-    stories = stories.filter(item => item.authorId === state.user.uid);
-  } else if (state.storyFilter === "connections") {
-    const allowed = new Set([state.user.uid, ...await getAcceptedConnectionIds()]);
-    stories = stories.filter(item =>
-      item.authorId === state.user.uid ||
-      (allowed.has(item.authorId) &&
-       (item.visibility === "connections" || item.visibility === "public"))
-    );
-  } else {
-    stories = stories.filter(item =>
-      item.visibility === "public" || item.authorId === state.user.uid
-    );
-  }
-
-  stories.sort((a, b) => {
-    const dateA = a.createdAt?.toMillis?.() || 0;
-    const dateB = b.createdAt?.toMillis?.() || 0;
-    return dateB - dateA;
-  });
-
-  return stories;
-}
-
-async function renderStories() {
-  const feed = $("#stories-feed");
-  if (!feed) return;
-
-  if (!state.user) {
-    feed.innerHTML = `
-      <div class="empty-state">
-        <p>Log in to explore stories and create your own memories.</p>
-        <button class="button button-primary" data-action="get-started" type="button">Enter your world</button>
-      </div>
-    `;
-    return;
-  }
-
-  feed.innerHTML = `<p class="muted">Loading stories...</p>`;
-
-  try {
-    state.stories = await fetchStories();
-
-    if (!state.stories.length) {
-      feed.innerHTML = `
-        <div class="empty-state">
-          <h3>Your story begins here</h3>
-          <p>No stories to show yet. Create a feeling, memory or music post.</p>
-          <button class="button button-primary" data-action="create-memory" type="button">Create your first story</button>
-        </div>
-      `;
-      return;
-    }
-
-    feed.innerHTML = state.stories.map(storyCard).join("");
-  } catch (error) {
-    console.error("Story loading error:", error);
-    feed.innerHTML = `
-      <div class="empty-state">
-        <p>Stories could not be loaded. Check your Firestore rules and connection.</p>
-        <button class="button button-secondary" data-action="refresh-stories" type="button">Try again</button>
-      </div>
-    `;
+    busy(button, false);
   }
 }
 
 function openStory(kind = "memory") {
-  if (!state.user) {
-    openAuth("login");
-    return;
-  }
+  if (!state.user) return openAuth("login");
 
-  const kindSelect = $("#story-kind");
-  if (kindSelect) kindSelect.value = kind;
-
-  const message = $("#story-message");
-  if (message) message.textContent = "";
-
+  if ($("#story-kind")) $("#story-kind").value = kind;
+  if ($("#story-message")) $("#story-message").textContent = "";
   openDialog("story-dialog");
 }
 
-async function handleStorySubmit(event) {
+async function publishStory(event) {
   event.preventDefault();
+  if (!state.user || state.busy) return;
 
-  if (!await ensureSignedIn()) return;
-
-  const form = $("#story-form");
   const button = $("#publish-story-button");
-  if (!form || state.busy) return;
-
   const title = $("#story-title")?.value.trim() || "";
   const text = $("#story-text")?.value.trim() || "";
   const kind = $("#story-kind")?.value || "memory";
@@ -727,534 +365,453 @@ async function handleStorySubmit(event) {
   const visibility = $("#story-visibility")?.value || "public";
   const file = $("#story-media")?.files?.[0] || null;
 
-  if (!title && !text && !file) {
-    showToast("Add a title, a message or a media file.");
-    return;
-  }
+  if (!title && !text && !file) return toast("Add text, a title or media.");
 
   state.busy = true;
-  setBusy(button, true, "Publishing...");
+  busy(button, true, "Publishing...");
 
   try {
     let media = null;
-
-    if (file) {
-      media = await uploadMedia(file);
-    }
+    if (file) media = await uploadMedia(file);
 
     await addDoc(collection(db, "stories"), {
       authorId: state.user.uid,
       authorName: state.profile?.displayName || state.user.displayName || "Member",
-      title: title || (kind === "feeling" ? "A feeling from today" : "A moment from my world"),
+      title: title || "A moment from my world",
       text,
       kind,
       mood,
-      visibility,
+      visibility: ["public", "connections", "private"].includes(visibility) ? visibility : "public",
       mediaURL: media?.url || "",
       mediaPublicId: media?.publicId || "",
       mediaType: file?.type || "",
-      mediaResourceType: media?.resourceType || "",
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
 
-    form.reset();
+    $("#story-form")?.reset();
     closeDialog($("#story-dialog"));
-    showToast("Your story has been published.", "success");
+    toast("Your story has been published.", "success");
     await renderStories();
   } catch (error) {
-    console.error("Story publishing error:", error);
     const message = $("#story-message");
-    if (message) {
-      message.textContent = error.message || "Could not publish your story.";
-    }
+    if (message) message.textContent = error.message || "Could not publish story.";
+    else toast(error.message || "Could not publish story.", "error");
   } finally {
     state.busy = false;
-    setBusy(button, false);
+    busy(button, false);
   }
 }
 
-async function deleteStory(storyId) {
-  const story = state.stories.find(item => item.id === storyId);
-  if (!story || story.authorId !== state.user?.uid) {
-    showToast("You can only delete your own stories.");
+function storyMedia(story) {
+  if (!story.mediaURL) return "";
+  const url = esc(story.mediaURL);
+  const type = story.mediaType || "";
+
+  if (type.startsWith("image/")) {
+    return `<img class="story-media" src="${url}" alt="Story image" loading="lazy">`;
+  }
+  if (type.startsWith("video/")) {
+    return `<video class="story-media" src="${url}" controls playsinline preload="metadata"></video>`;
+  }
+  if (type.startsWith("audio/")) {
+    return `<audio class="story-audio" src="${url}" controls preload="none"></audio>`;
+  }
+  return "";
+}
+
+function storyCard(story) {
+  const author = esc(story.authorName || "Member");
+  return `
+    <article class="story-card">
+      <header class="story-card-header">
+        <div class="story-avatar">${esc(author.charAt(0).toUpperCase())}</div>
+        <div><strong>${author}</strong></div>
+        <span class="story-visibility">${esc(story.visibility)}</span>
+      </header>
+      <h3>${esc(story.title || "A moment from my world")}</h3>
+      ${story.mood ? `<p class="story-mood">${esc(story.mood)}</p>` : ""}
+      ${story.text ? `<p class="story-text">${esc(story.text)}</p>` : ""}
+      ${storyMedia(story)}
+      <footer class="story-card-footer">
+        <span>${esc(story.kind || "memory")}</span>
+        ${story.authorId === state.user?.uid
+          ? `<button type="button" class="text-button" data-delete-story="${esc(story.id)}">Delete</button>`
+          : `<button type="button" class="text-button" data-report-story="${esc(story.id)}" data-author-id="${esc(story.authorId)}">Report</button>`}
+      </footer>
+    </article>`;
+}
+
+async function acceptedConnectionIds() {
+  if (!state.user) return [];
+
+  const [sent, received] = await Promise.all([
+    getDocs(query(collection(db, "connectionRequests"),
+      where("from", "==", state.user.uid),
+      where("status", "==", "accepted"), limit(100))),
+    getDocs(query(collection(db, "connectionRequests"),
+      where("to", "==", state.user.uid),
+      where("status", "==", "accepted"), limit(100)))
+  ]);
+
+  return [...new Set([
+    ...sent.docs.map(d => d.data().to),
+    ...received.docs.map(d => d.data().from)
+  ].filter(Boolean))];
+}
+
+async function fetchStories() {
+  if (!state.user) return [];
+
+  const own = await getDocs(query(collection(db, "stories"),
+    where("authorId", "==", state.user.uid), limit(100)));
+
+  let docs = [...own.docs];
+
+  if (state.storyFilter === "public") {
+    const publicStories = await getDocs(query(collection(db, "stories"),
+      where("visibility", "==", "public"), limit(100)));
+    docs.push(...publicStories.docs);
+  } else if (state.storyFilter === "connections") {
+    const ids = await acceptedConnectionIds();
+    for (let i = 0; i < ids.length; i += 10) {
+      const batch = ids.slice(i, i + 10);
+      if (!batch.length) continue;
+
+      const result = await getDocs(query(collection(db, "stories"),
+        where("authorId", "in", batch),
+        where("visibility", "==", "connections"), limit(100)));
+      docs.push(...result.docs);
+    }
+    const publicStories = await getDocs(query(collection(db, "stories"),
+      where("visibility", "==", "public"), limit(100)));
+    docs.push(...publicStories.docs);
+  }
+
+  const unique = new Map();
+  for (const item of docs) {
+    const story = { id: item.id, ...item.data() };
+    if (story.visibility === "private" && story.authorId !== state.user.uid) continue;
+    unique.set(item.id, story);
+  }
+
+  let result = [...unique.values()];
+  if (state.storyFilter === "mine") {
+    result = result.filter(s => s.authorId === state.user.uid);
+  } else if (state.storyFilter === "connections") {
+    const allowed = new Set([state.user.uid, ...await acceptedConnectionIds()]);
+    result = result.filter(s => s.visibility === "public" ||
+      (allowed.has(s.authorId) && s.visibility === "connections") ||
+      s.authorId === state.user.uid);
+  } else {
+    result = result.filter(s => s.visibility === "public" || s.authorId === state.user.uid);
+  }
+
+  result.sort((a, b) =>
+    (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+  return result;
+}
+
+async function renderStories() {
+  const feed = $("#stories-feed");
+  if (!feed) return;
+
+  if (!state.user) {
+    feed.innerHTML = `<p>Log in to explore stories and create your own memories.</p>`;
     return;
   }
 
-  if (!window.confirm("Delete this story permanently?")) return;
-
+  feed.innerHTML = `<p class="muted">Loading stories...</p>`;
   try {
-    await deleteDoc(doc(db, "stories", storyId));
-    showToast("Story deleted.");
-    await renderStories();
+    state.stories = await fetchStories();
+
+    if (!state.stories.length) {
+      feed.innerHTML = `<div class="empty-state"><h3>Your story begins here</h3><p>No stories yet. Create your first memory.</p><button class="button button-primary" type="button" data-action="create-memory">Create a story</button></div>`;
+      return;
+    }
+
+    feed.innerHTML = state.stories.map(storyCard).join("");
   } catch (error) {
-    showToast(error.message || "Could not delete this story.", "error");
+    console.error(error);
+    feed.innerHTML = `<p>Stories could not be loaded. Check Firestore rules and console errors.</p>`;
   }
 }
 
-async function reportStory(storyId, authorId) {
-  if (!await ensureSignedIn()) return;
+async function deleteStory(id) {
+  const story = state.stories.find(s => s.id === id);
+  if (!story || story.authorId !== state.user?.uid) return toast("You can only delete your own story.");
+  if (!confirm("Delete this story?")) return;
 
-  const reason = window.prompt(
-    "Why are you reporting this story? (spam, harassment, unsafe content, other)"
-  );
+  try {
+    await deleteDoc(doc(db, "stories", id));
+    toast("Story deleted.");
+    await renderStories();
+  } catch (error) {
+    toast(error.message || "Could not delete story.", "error");
+  }
+}
 
+async function reportStory(id, authorId) {
+  if (!await requireLogin()) return;
+  const reason = prompt("Why are you reporting this story?");
   if (!reason?.trim()) return;
 
   try {
     await addDoc(collection(db, "reports"), {
       reporterId: state.user.uid,
-      storyId,
-      reportedUserId: authorId,
+      storyId: id,
+      reportedUserId: authorId || "",
       reason: reason.trim().slice(0, 500),
       status: "pending",
       createdAt: serverTimestamp()
     });
-
-    showToast("Report submitted for review.", "success");
+    toast("Report submitted.", "success");
   } catch (error) {
-    showToast(error.message || "Could not submit report.", "error");
+    toast(error.message || "Could not submit report.", "error");
   }
 }
 
-async function loadConnections() {
-  if (!state.user) return;
-
+async function loadConnectionRequests() {
   const [sent, received] = await Promise.all([
-    getDocs(query(
-      collection(db, "connectionRequests"),
-      where("from", "==", state.user.uid),
-      limit(100)
-    )),
-    getDocs(query(
-      collection(db, "connectionRequests"),
-      where("to", "==", state.user.uid),
-      limit(100)
-    ))
+    getDocs(query(collection(db, "connectionRequests"),
+      where("from", "==", state.user.uid), limit(100))),
+    getDocs(query(collection(db, "connectionRequests"),
+      where("to", "==", state.user.uid), limit(100)))
   ]);
 
-  state.connectionRequests = [
-    ...sent.docs.map(item => ({ id: item.id, ...item.data() })),
-    ...received.docs.map(item => ({ id: item.id, ...item.data() }))
+  state.requests = [
+    ...sent.docs.map(d => ({ id: d.id, ...d.data() })),
+    ...received.docs.map(d => ({ id: d.id, ...d.data() }))
   ];
-
-  const ids = await getAcceptedConnectionIds();
-  const profiles = await Promise.all(ids.map(async uid => {
-    const snapshot = await getDoc(doc(db, "users", uid));
-    return snapshot.exists() ? { uid, ...snapshot.data() } : null;
-  }));
-
-  state.connections = profiles.filter(Boolean);
-}
-
-function renderConnectionTabs() {
-  $$("[data-connection-tab]").forEach(button => {
-    button.setAttribute(
-      "aria-pressed",
-      String(button.dataset.connectionTab === state.connectionTab)
-    );
-  });
 }
 
 async function renderConnections() {
   const target = $("#connections-content");
   if (!target) return;
-
   if (!state.user) {
-    target.innerHTML = `<p>Log in to manage your connections.</p>`;
+    target.textContent = "Log in to manage connections.";
     return;
   }
 
-  target.innerHTML = `<p class="muted">Loading community...</p>`;
+  target.textContent = "Loading community...";
 
   try {
-    await loadConnections();
+    await loadConnectionRequests();
+    const ids = await acceptedConnectionIds();
+
+    state.connections = (await Promise.all(ids.map(async uid => {
+      const snap = await getDoc(doc(db, "users", uid));
+      return snap.exists() ? { uid, ...snap.data() } : null;
+    }))).filter(Boolean);
 
     if (state.connectionTab === "connections") {
       target.innerHTML = state.connections.length
-        ? state.connections.map(person => `
-            <article class="connection-card">
-              <strong>${escapeHTML(person.displayName || "Member")}</strong>
-              <p>${escapeHTML(person.bio || "Building their own world.")}</p>
-              <button type="button" class="button button-secondary" data-open-member="${escapeHTML(person.uid)}">View profile</button>
-            </article>
-          `).join("")
-        : `<p>No connections yet. Discover people to get started.</p>`;
+        ? state.connections.map(p => `<article class="connection-card"><strong>${esc(p.displayName || "Member")}</strong><p>${esc(p.bio || "")}</p></article>`).join("")
+        : "<p>No connections yet.</p>";
       return;
     }
 
     if (state.connectionTab === "requests") {
-      const incoming = state.connectionRequests.filter(item =>
-        item.to === state.user.uid && item.status === "pending"
-      );
-
+      const incoming = state.requests.filter(r => r.to === state.user.uid && r.status === "pending");
       if (!incoming.length) {
-        target.innerHTML = `<p>No pending connection requests.</p>`;
+        target.innerHTML = "<p>No pending requests.</p>";
         return;
       }
 
-      const requestProfiles = await Promise.all(incoming.map(async request => {
-        const profile = await getDoc(doc(db, "users", request.from));
-        return { request, profile: profile.exists() ? profile.data() : {} };
-      }));
-
-      target.innerHTML = requestProfiles.map(({ request, profile }) => `
-        <article class="connection-card">
-          <strong>${escapeHTML(profile.displayName || "Member")}</strong>
-          <p>${escapeHTML(profile.bio || "Would like to connect with you.")}</p>
-          <button class="button button-primary" type="button" data-accept-request="${escapeHTML(request.id)}">Accept</button>
-          <button class="button button-secondary" type="button" data-reject-request="${escapeHTML(request.id)}">Decline</button>
-        </article>
-      `).join("");
+      target.innerHTML = (await Promise.all(incoming.map(async r => {
+        const snap = await getDoc(doc(db, "users", r.from));
+        const p = snap.exists() ? snap.data() : {};
+        return `<article class="connection-card"><strong>${esc(p.displayName || "Member")}</strong><button class="button button-primary" data-accept-request="${esc(r.id)}" type="button">Accept</button><button class="button button-secondary" data-reject-request="${esc(r.id)}" type="button">Decline</button></article>`;
+      }))).join("");
       return;
     }
 
-    const usersSnapshot = await getDocs(query(collection(db, "users"), limit(40)));
-    const sentPending = state.connectionRequests
-      .filter(item => item.from === state.user.uid && item.status === "pending")
-      .map(item => item.to);
+    const snapshot = await getDocs(query(collection(db, "users"), limit(40)));
+    const pendingTargets = new Set(state.requests
+      .filter(r => r.from === state.user.uid && r.status === "pending")
+      .map(r => r.to));
+    const connected = new Set(ids);
 
-    const alreadyConnected = new Set(state.connections.map(person => person.uid));
+    const people = snapshot.docs.map(d => ({ uid: d.id, ...d.data() }))
+      .filter(p => p.uid !== state.user.uid && !connected.has(p.uid) && !pendingTargets.has(p.uid));
 
-    const candidates = usersSnapshot.docs
-      .map(item => ({ uid: item.id, ...item.data() }))
-      .filter(person =>
-        person.uid !== state.user.uid &&
-        !alreadyConnected.has(person.uid) &&
-        !sentPending.includes(person.uid)
-      );
-
-    target.innerHTML = candidates.length
-      ? candidates.map(person => `
-          <article class="connection-card">
-            <strong>${escapeHTML(person.displayName || "Member")}</strong>
-            <p>${escapeHTML(person.bio || "Discover their story.")}</p>
-            <button class="button button-primary" type="button" data-send-request="${escapeHTML(person.uid)}">Connect</button>
-          </article>
-        `).join("")
-      : `<p>No new profiles found right now.</p>`;
+    target.innerHTML = people.length
+      ? people.map(p => `<article class="connection-card"><strong>${esc(p.displayName || "Member")}</strong><p>${esc(p.bio || "Discover their story.")}</p><button class="button button-primary" type="button" data-send-request="${esc(p.uid)}">Connect</button></article>`).join("")
+      : "<p>No new profiles found.</p>";
   } catch (error) {
-    console.error("Connections loading error:", error);
-    target.innerHTML = `<p>Could not load connections. Check Firestore rules.</p>`;
+    console.error(error);
+    target.textContent = "Could not load connections. Check Firestore rules.";
   }
 
-  renderConnectionTabs();
+  $$("[data-connection-tab]").forEach(button =>
+    button.setAttribute("aria-pressed", String(button.dataset.connectionTab === state.connectionTab)));
 }
 
-async function sendConnectionRequest(targetUid) {
-  if (!await ensureSignedIn()) return;
-  if (targetUid === state.user.uid) return;
-
-  const existing = state.connectionRequests.find(item =>
-    (item.from === state.user.uid && item.to === targetUid) ||
-    (item.from === targetUid && item.to === state.user.uid)
-  );
-
-  if (existing) {
-    showToast("A request already exists between these accounts.");
-    return;
-  }
+async function sendRequest(uid) {
+  if (!await requireLogin() || uid === state.user.uid) return;
 
   try {
+    await loadConnectionRequests();
+    const existing = state.requests.find(r =>
+      (r.from === state.user.uid && r.to === uid) ||
+      (r.from === uid && r.to === state.user.uid && r.status === "pending"));
+
+    if (existing) return toast("A request already exists.");
+
     await addDoc(collection(db, "connectionRequests"), {
       from: state.user.uid,
-      to: targetUid,
+      to: uid,
       status: "pending",
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
 
-    showToast("Connection request sent.", "success");
+    toast("Connection request sent.", "success");
     await renderConnections();
   } catch (error) {
-    showToast(error.message || "Could not send the request.", "error");
+    toast(error.message || "Could not send request.", "error");
   }
 }
 
-async function respondToRequest(requestId, accepted) {
-  const request = state.connectionRequests.find(item => item.id === requestId);
-
+async function respondRequest(id, accepted) {
+  const request = state.requests.find(r => r.id === id);
   if (!request || request.to !== state.user?.uid || request.status !== "pending") {
-    showToast("This request is no longer available.");
-    return;
+    return toast("Request is no longer available.");
   }
 
   try {
-    await updateDoc(doc(db, "connectionRequests", requestId), {
+    await updateDoc(doc(db, "connectionRequests", id), {
       status: accepted ? "accepted" : "rejected",
       updatedAt: serverTimestamp()
     });
-
-    showToast(accepted ? "You are now connected." : "Request declined.");
+    toast(accepted ? "Connection accepted." : "Request declined.");
     await renderConnections();
   } catch (error) {
-    showToast(error.message || "Could not update this request.", "error");
+    toast(error.message || "Could not update request.", "error");
   }
-}
-
-async function openMemberProfile(uid) {
-  const person = state.connections.find(item => item.uid === uid);
-  if (!person) return;
-
-  const target = $("#feature-dialog-content");
-  if (target) {
-    target.innerHTML = `
-      <article class="member-profile">
-        <h3>${escapeHTML(person.displayName || "Member")}</h3>
-        <p>${escapeHTML(person.bio || "This member hasn't added a bio yet.")}</p>
-        <p><strong>Interests:</strong> ${escapeHTML(
-          Array.isArray(person.interests) ? person.interests.join(", ") : ""
-        )}</p>
-      </article>
-    `;
-  }
-
-  $("#feature-dialog-eyebrow").textContent = "COMMUNITY";
-  $("#feature-dialog-title").textContent = "A member of your world";
-  $("#feature-dialog-description").textContent = "Get to know your connection.";
-  openDialog("feature-dialog");
-}
-
-function openFeature(feature) {
-  state.feature = feature;
-
-  const content = $("#feature-dialog-content");
-  const eyebrow = $("#feature-dialog-eyebrow");
-  const title = $("#feature-dialog-title");
-  const description = $("#feature-dialog-description");
-
-  const copy = {
-    feelings: {
-      eyebrow: "FEEL",
-      title: "Your feelings deserve a voice",
-      description: "Share a feeling, choose who can see it, and express yourself in your own words.",
-      action: "create-feeling"
-    },
-    music: {
-      eyebrow: "CREATE",
-      title: "Soundtrack your story",
-      description: "Share an audio file with your story. Supported audio uploads depend on your Cloudinary preset.",
-      action: "create-music"
-    },
-    identity: {
-      eyebrow: "EXPRESS",
-      title: "Build your identity",
-      description: "Update your name, bio, interests and profile photo.",
-      action: "open-profile"
-    },
-    community: {
-      eyebrow: "CONNECT",
-      title: "Find your people",
-      description: "Send connection requests, respond to invitations and build your community.",
-      action: "open-connections"
-    }
-  };
-
-  const item = copy[feature] || copy.feelings;
-
-  if (eyebrow) eyebrow.textContent = item.eyebrow;
-  if (title) title.textContent = item.title;
-  if (description) description.textContent = item.description;
-
-  if (content) {
-    content.innerHTML = `
-      <button class="button button-primary" type="button" data-action="${item.action}">
-        ${feature === "identity" ? "Edit my profile" :
-          feature === "community" ? "Explore connections" :
-          feature === "music" ? "Share music" : "Share a feeling"}
-      </button>
-    `;
-  }
-
-  openDialog("feature-dialog");
 }
 
 function openConnections() {
-  if (!state.user) {
-    openAuth("login");
-    return;
-  }
-
+  if (!state.user) return openAuth("login");
   state.connectionTab = "discover";
-  renderConnectionTabs();
   renderConnections();
   openDialog("connections-dialog");
 }
 
+function openFeature(feature) {
+  const content = $("#feature-dialog-content");
+  const title = $("#feature-dialog-title");
+  const eyebrow = $("#feature-dialog-eyebrow");
+  const description = $("#feature-dialog-description");
+
+  const options = {
+    feelings: ["FEEL", "Your feelings deserve a voice", "Share a feeling with the audience you choose.", "create-feeling"],
+    music: ["CREATE", "Soundtrack your story", "Upload and share supported audio files.", "create-music"],
+    identity: ["EXPRESS", "Build your identity", "Update your profile and express who you are.", "open-profile"],
+    community: ["CONNECT", "Find your people", "Discover people and manage connection requests.", "open-connections"]
+  };
+
+  const item = options[feature] || options.feelings;
+  if (eyebrow) eyebrow.textContent = item[0];
+  if (title) title.textContent = item[1];
+  if (description) description.textContent = item[2];
+  if (content) content.innerHTML = `<button class="button button-primary" type="button" data-action="${item[3]}">Continue</button>`;
+  openDialog("feature-dialog");
+}
+
 function setStoryFilter(filter) {
-  state.storyFilter = ["public", "connections", "mine"].includes(filter)
-    ? filter
-    : "public";
-
-  $$("[data-story-filter]").forEach(button => {
-    button.setAttribute(
-      "aria-pressed",
-      String(button.dataset.storyFilter === state.storyFilter)
-    );
-  });
-
+  state.storyFilter = ["public", "connections", "mine"].includes(filter) ? filter : "public";
+  $$("[data-story-filter]").forEach(button =>
+    button.setAttribute("aria-pressed", String(button.dataset.storyFilter === state.storyFilter)));
   renderStories();
 }
 
-function closeMenus() {
-  const menu = $("#account-menu");
-  if (menu) menu.hidden = true;
-}
-
 function bindEvents() {
-  $("#auth-form")?.addEventListener("submit", handleAuthSubmit);
-  $("#story-form")?.addEventListener("submit", handleStorySubmit);
-
-  $("#auth-mode-toggle")?.addEventListener("click", () => {
-    setAuthMode(state.authMode === "login" ? "signup" : "login");
-  });
-
-  $$("[data-action='forgot-password']").forEach(button => {
-    button.addEventListener("click", handlePasswordReset);
-  });
-
+  $("#auth-form")?.addEventListener("submit", authSubmit);
+  $("#story-form")?.addEventListener("submit", publishStory);
   $("#login-button")?.addEventListener("click", () => openAuth("login"));
   $("#signup-button")?.addEventListener("click", () => openAuth("signup"));
+
+  $("#auth-mode-toggle")?.addEventListener("click", () =>
+    openAuth(state.authMode === "login" ? "signup" : "login"));
+
+  $$("[data-action='forgot-password']").forEach(button =>
+    button.addEventListener("click", resetPassword));
+
+  $$("[data-story-filter]").forEach(button =>
+    button.addEventListener("click", () => setStoryFilter(button.dataset.storyFilter)));
+
+  $$("[data-connection-tab]").forEach(button =>
+    button.addEventListener("click", () => {
+      state.connectionTab = button.dataset.connectionTab;
+      renderConnections();
+    }));
 
   $("#menu-toggle")?.addEventListener("click", () => {
     const menu = $("#account-menu");
     if (menu) menu.hidden = !menu.hidden;
   });
 
-  $$("[data-story-filter]").forEach(button => {
-    button.addEventListener("click", () => setStoryFilter(button.dataset.storyFilter));
-  });
-
-  $$("[data-connection-tab]").forEach(button => {
-    button.addEventListener("click", () => {
-      state.connectionTab = button.dataset.connectionTab;
-      renderConnectionTabs();
-      renderConnections();
-    });
-  });
-
   document.addEventListener("click", async event => {
-    const target = event.target.closest("[data-action], [data-delete-story], [data-report-story], [data-send-request], [data-accept-request], [data-reject-request], [data-open-member]");
+    const button = event.target.closest("button, [data-action]");
+    if (!button) return;
 
-    if (!target) {
-      if (!event.target.closest("#account-menu, #menu-toggle")) closeMenus();
-      return;
-    }
+    const action = button.dataset.action;
 
-    if (target.dataset.action) {
-      const action = target.dataset.action;
+    try {
+      if (action === "get-started") openAuth("signup");
+      else if (action === "create-feeling") openStory("feeling");
+      else if (action === "create-memory") openStory("memory");
+      else if (action === "create-music") openStory("music");
+      else if (action === "open-profile") openProfile();
+      else if (action === "open-connections") openConnections();
+      else if (action === "open-feature") openFeature(button.dataset.feature);
+      else if (action === "load-more-stories" || action === "refresh-stories") await renderStories();
+      else if (action === "logout") await signOut(auth);
+      else if (action === "close-dialog") closeDialog(button.closest("dialog"));
 
-      switch (action) {
-        case "get-started":
-          openAuth("signup");
-          break;
-        case "create-feeling":
-          closeDialog($("#feature-dialog"));
-          openStory("feeling");
-          break;
-        case "create-memory":
-          closeDialog($("#feature-dialog"));
-          openStory("memory");
-          break;
-        case "create-music":
-          closeDialog($("#feature-dialog"));
-          openStory("music");
-          break;
-        case "open-profile":
-          closeDialog($("#feature-dialog"));
-          openProfile();
-          break;
-        case "open-connections":
-          closeDialog($("#feature-dialog"));
-          openConnections();
-          break;
-        case "open-feature":
-          openFeature(target.dataset.feature);
-          break;
-        case "load-more-stories":
-        case "refresh-stories":
-          await renderStories();
-          break;
-        case "logout":
-          await signOut(auth);
-          closeMenus();
-          showToast("You have safely logged out.");
-          break;
-        case "close-dialog":
-          closeDialog(target.closest("dialog"));
-          break;
-      }
-    }
-
-    if (target.dataset.deleteStory) {
-      await deleteStory(target.dataset.deleteStory);
-    }
-
-    if (target.dataset.reportStory) {
-      await reportStory(target.dataset.reportStory, target.dataset.authorId);
-    }
-
-    if (target.dataset.sendRequest) {
-      await sendConnectionRequest(target.dataset.sendRequest);
-    }
-
-    if (target.dataset.acceptRequest) {
-      await respondToRequest(target.dataset.acceptRequest, true);
-    }
-
-    if (target.dataset.rejectRequest) {
-      await respondToRequest(target.dataset.rejectRequest, false);
-    }
-
-    if (target.dataset.openMember) {
-      await openMemberProfile(target.dataset.openMember);
+      if (button.dataset.deleteStory) await deleteStory(button.dataset.deleteStory);
+      if (button.dataset.reportStory) await reportStory(button.dataset.reportStory, button.dataset.authorId);
+      if (button.dataset.sendRequest) await sendRequest(button.dataset.sendRequest);
+      if (button.dataset.acceptRequest) await respondRequest(button.dataset.acceptRequest, true);
+      if (button.dataset.rejectRequest) await respondRequest(button.dataset.rejectRequest, false);
+    } catch (error) {
+      console.error(error);
+      toast("Action failed. Check your connection and Firebase rules.", "error");
     }
   });
 
-  $("#current-year") && ($("#current-year").textContent = String(new Date().getFullYear()));
-
-  document.addEventListener("keydown", event => {
-    if (event.key === "Escape") closeMenus();
-  });
-}
-
-async function handleSignedIn(user) {
-  state.user = user;
-
-  try {
-    await loadProfile(user);
-    await renderStories();
-  } catch (error) {
-    console.error("Account initialization error:", error);
-    showToast("Your account loaded, but some data could not be read. Check Firestore rules.", "error");
-  }
-
-  updateNavigation();
-}
-
-function handleSignedOut() {
-  state.user = null;
-  state.profile = null;
-  state.stories = [];
-  state.connections = [];
-  state.connectionRequests = [];
-
-  updateNavigation();
-  applyExperience();
-  renderStories();
+  if ($("#current-year")) $("#current-year").textContent = String(new Date().getFullYear());
 }
 
 function init() {
   bindEvents();
-  setAuthMode("login");
-  updateNavigation();
+  navigation();
 
-  onAuthStateChanged(auth, user => {
-    if (user) {
-      handleSignedIn(user);
-    } else {
-      handleSignedOut();
+  onAuthStateChanged(auth, async user => {
+    state.user = user;
+
+    if (!user) {
+      state.profile = null;
+      state.stories = [];
+      state.connections = [];
+      state.requests = [];
+      navigation();
+      experience();
+      await renderStories();
+      return;
     }
+
+    try {
+      await loadProfile(user);
+      await renderStories();
+      toast("Your world is ready.", "success");
+    } catch (error) {
+      console.error("Account initialization failed:", error);
+      toast("Account loaded, but some data could not be read. Check Firestore rules.", "error");
+    }
+
+    navigation();
   });
 }
 
